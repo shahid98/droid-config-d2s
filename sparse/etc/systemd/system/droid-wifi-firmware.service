@@ -1,0 +1,14 @@
+[Unit]
+Description=Point bcmdhd at the vendor WiFi firmware and NVRAM
+After=droid-hal-init.service
+
+[Service]
+# Type=simple and no Before=: this must never be something the boot
+# transaction waits on. An earlier oneshot version ordered Before=connman and
+# called "systemctl restart connman" from inside itself, which deadlocked the
+# job queue and left the device on a blank screen with no user session.
+Type=simple
+ExecStart=/usr/bin/droid-wifi-firmware.sh
+
+[Install]
+WantedBy=multi-user.target

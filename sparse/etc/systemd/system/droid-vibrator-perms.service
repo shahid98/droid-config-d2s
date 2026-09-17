@@ -1,0 +1,14 @@
+[Unit]
+Description=Make the vibrator writable by ngfd
+# Must be after droid-hal-init: Android's ueventd sets the node to
+# system:system 0664 when it processes the device, so anything earlier gets
+# overwritten.
+After=droid-hal-init.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/droid-vibrator-perms.sh
+
+[Install]
+WantedBy=multi-user.target

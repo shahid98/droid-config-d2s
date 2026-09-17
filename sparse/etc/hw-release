@@ -1,0 +1,19 @@
+NAME="Galaxy Note10+"
+VERSION="1.0.0.0 (d2s)"
+ID=d2s
+VERSION_ID=1.0.0.0
+PRETTY_NAME="Galaxy Note10+ 1.0.0.0"
+HW_NAME="Galaxy Note10+"
+HW_MANUFACTURER="Samsung"
+HW_MODEL="SM-N975F"
+# ssusysinfo resolves the device model in this order:
+#   1. [file.exists]      in board-mappings.d/*.ini
+#   2. MER_HA_DEVICE      from THIS file
+#   3. [cpuinfo.contains] in board-mappings.d/*.ini
+# Nothing else here is consulted for identification - not ID, not HW_MODEL.
+# Without MER_HA_DEVICE none of the three matched, ssusysinfo_device_model()
+# returned "UNKNOWN", and every attribute keyed off it (manufacturer, pretty
+# name, designation) came back UNKNOWN too - so Settings > About showed
+# UNKNOWN. With it set, the generated 05-samsung-d2s.ini [d2s] section supplies
+# the rest:  model: d2s / manufacturer: Samsung / pretty_name: Galaxy Note 10+
+MER_HA_DEVICE=d2s

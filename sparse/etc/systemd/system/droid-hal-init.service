@@ -1,0 +1,35 @@
+[Unit]
+Description=droid-hal-init
+# Full override of /usr/lib/systemd/system/droid-hal-init.service.
+# The original has "Before=basic.target network.target ...". That cannot be
+# removed with a drop-in on systemd 238 (resetting After=/Before= with an empty
+# assignment is a later feature), and it creates an unbreakable ordering cycle:
+#   basic.target -> droid-hal-init -> droid-selinux-enable -> basic.target
+# systemd resolves it by deleting the droid-hal-init job, so the HAL never
+# started. Dropping Before= lets the HAL start after SELinux is enabled, which
+# in turn happens after systemd-logind is up (logind SIGSEGVs if selinuxfs
+# exists when it starts).
+Wants=systemd-udev-settle.service
+After=local-fs.target systemd-modules-load.service systemd-udev-settle.service systemd-tmpfiles-setup.service droid-selinux-enable.service
+DefaultDependencies=no
+Conflicts=shutdown.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+# Namespacing disabled: the HAL needs the host mount namespace so the /apex and
+# /system binds set up in init.rc are visible to it.
+ProtectSystem=no
+ProtectHome=no
+PrivateTmp=no
+ExecStartPre=-/bin/sh /usr/bin/droid/droid-hal-early-init.sh
+ExecStart=/bin/sh /usr/bin/droid/droid-hal-startup.sh
+KillMode=none
+ExecStop=/bin/sh /usr/bin/droid/droid-hal-shutdown.sh
+# Android init can only run once per boot; restarting it aborts in first stage
+# ("mknod /dev/kmsg_debug ... File exists").
+Restart=no
+TimeoutSec=15
+
+[Install]
+WantedBy=multi-user.target

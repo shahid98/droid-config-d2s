@@ -1,0 +1,7 @@
+# 1440x3040 at ~498 ppi. Sailfish's reference is the Jolla 1 (540x960 at
+# ~245 ppi = 1.0), so this panel wants ~2.0; without it the whole UI renders
+# at roughly half size. z2.0 exists in sailfish-default.
+# Sorts after silica-configs.txt so it wins the dconf merge.
+[desktop/sailfish/silica]
+theme_pixel_ratio=2.0
+theme_icon_subdir='z2.0'

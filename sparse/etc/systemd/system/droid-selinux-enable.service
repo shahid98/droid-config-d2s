@@ -1,0 +1,16 @@
+[Unit]
+Description=Enable SELinux for the Android HAL (late)
+# No After=systemd-logind.service - that edge creates an ordering cycle
+# through basic.target and makes systemd delete the droid-hal-init job.
+# The script polls for logind instead.
+After=sysinit.target systemd-tmpfiles-setup.service
+Before=droid-hal-init.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=90
+ExecStart=/usr/bin/droid-selinux-enable.sh
+
+[Install]
+WantedBy=multi-user.target

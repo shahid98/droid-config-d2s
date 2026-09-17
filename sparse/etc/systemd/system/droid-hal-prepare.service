@@ -1,0 +1,14 @@
+[Unit]
+Description=Prepare Android HAL environment
+Requires=system.mount
+After=system.mount vendor.mount
+Before=droid-hal-init.service local-fs.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/droid-hal-prepare.sh
+
+[Install]
+WantedBy=local-fs.target

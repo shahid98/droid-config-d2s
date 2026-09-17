@@ -1,0 +1,13 @@
+[Unit]
+Description=Reconcile Android netd policy routing and firewall with connman
+After=droid-hal-init.service
+
+[Service]
+# Type=simple with no Before=: nothing in the boot transaction may wait on this.
+Type=simple
+ExecStart=/usr/bin/droid-net-fixup.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
