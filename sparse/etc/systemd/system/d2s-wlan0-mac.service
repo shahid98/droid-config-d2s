@@ -1,0 +1,25 @@
+# Set wlan0 to its real (EFS) MAC before connman starts, so connman's wifi
+# device ident - and therefore every saved service name - is the same on every
+# boot. Without this, bcmdhd's pre-firmware random 00:90:4c:xx address becomes
+# the ident, a new saved-service directory appears under
+# /home/defaultuser/.local/share/system/privileged/connman/ on each boot, and
+# Settings fills up with copies of the same network.
+#
+# See /usr/bin/d2s-wlan0-mac.sh for the full reasoning. The script is a no-op
+# when the address already matches or wlan0 is already up, and its waits are
+# deliberately short because connman is ordered after this.
+
+[Unit]
+Description=d2s: stable wifi ident - set wlan0 MAC from EFS before connman
+After=droid-hal-init.service droid-wifi-firmware.service
+Before=connman.service
+ConditionPathExists=/sys/class/net
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=60
+ExecStart=/usr/bin/d2s-wlan0-mac.sh
+
+[Install]
+WantedBy=multi-user.target

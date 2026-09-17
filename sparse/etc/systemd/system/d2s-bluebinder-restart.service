@@ -1,0 +1,53 @@
+# Bluetooth will not power on after a cold boot until bluebinder is restarted.
+#
+# bluebinder proxies BlueZ's HCI traffic to Samsung's Android Bluetooth HAL
+# through /dev/vhci. Its own log shows what goes wrong at boot:
+#
+#     Own hci index: N
+#     delaying writing host command to controller until bt is up
+#     delaying writing host command to controller until bt is up
+#     Turning bluetooth on
+#
+# The first host commands arrive while bluebinder still considers Bluetooth
+# down, so they are "delayed" - dropped - and that instance never recovers.
+# From then on every power-on fails:
+#
+#     gdbus ... Adapter1 Powered true
+#     Error: GDBus.Error:org.bluez.Error.Failed: Failed
+#     bluetoothd: Failed to set mode: Failed (0x03)
+#
+# Verified with a boot probe (/usr/bin/d2s-btprobe.sh): at uptime 65 s
+# bluebinder is already active, hci0 exists and rfkill is unblocked, yet the
+# power-on still fails - so this is not a race that resolves itself, and not
+# rfkill. Starting ANY fresh instance afterwards fixes it: power-on then
+# succeeds and discovery finds devices.
+#
+# bluebinder.service already waits for the vendor HAL via
+# /usr/bin/droid/bluebinder_wait.sh, which polls getprop for
+# init.svc.vendor.bluetooth-1-0 = running. The HAL reports "running" before it
+# is ready to serve, hence the dropped commands. Rather than patch the vendor
+# unit's ordering, restart bluebinder once after the HAL has settled.
+#
+# Earlier diagnoses in STATUS-d2s-alpha.md were wrong and are corrected there:
+# the "Got BLUEBINDER_LOCAL_FEATURES_MASK 0x0" line is just an unset
+# environment variable, and Samsung's private ISehBluetooth interface is not
+# involved - the standard android.hardware.bluetooth@1.0::IBluetoothHci is
+# registered and is what bluebinder uses.
+
+[Unit]
+Description=d2s: restart bluebinder once after boot so the adapter can power on
+After=bluetooth.service bluebinder.service
+Wants=bluebinder.service
+ConditionPathExists=/dev/vhci
+
+[Service]
+# systemctl is not in /bin on this device - an absolute /bin/systemctl here
+# fails the unit with status=203/EXEC - so resolve it through PATH instead.
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=90
+ExecStartPre=/bin/sleep 15
+ExecStart=/bin/sh -c "systemctl restart bluebinder.service"
+
+[Install]
+WantedBy=multi-user.target
