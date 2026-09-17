@@ -1,0 +1,10 @@
+# Build outputs created by rpm/dhd/helpers/build_packages.sh --configs / mb2.
+/tmp/
+/installroot/
+/.mb2/
+/documentation.list
+*.rpm
+
+# droid-configs-device is its own git repository (branch d2s-sailfish-port),
+# not a submodule of this one - keep it out of this tree's index.
+/droid-configs-device/

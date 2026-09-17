@@ -2,6 +2,34 @@
 # ~245 ppi = 1.0), so this panel wants ~2.0; without it the whole UI renders
 # at roughly half size. z2.0 exists in sailfish-default.
 # Sorts after silica-configs.txt so it wins the dconf merge.
+#
+# cutouts: the front-camera punch hole, as [x, y, width, height] in native
+# portrait pixels (Silica reads a list of 4-int lists). Taken from the
+# LineageOS overlay's config_mainBuiltInDisplayCutout,
+# "M 0,0 H -33 V 84 H 33 V 0 H 0 Z" - a 66x84 px box centred on the 1440 px
+# wide panel. With a top cutout, lipstick grows the status area by its height
+# and puts the clock below it; without one the clock sat under the hole.
 [desktop/sailfish/silica]
 theme_pixel_ratio=2.0
 theme_icon_subdir='z2.0'
+cutouts=[[687, 0, 66, 84]]
+
+# Back-camera lens buttons in jolla-camera. The app shows them only when
+# QtMultimedia lists more than one back camera AND this list labels them, in
+# the order the cameras are enumerated (API1 camera number order). With the
+# camera IDs set in d2s-camera.rc the numbers are:
+#   0 back  main        HAL id 0,  4.3 mm, 66.6 deg horizontal, 4032x3024
+#   1 back  ultra-wide  HAL id 2,  1.8 mm, 104 deg horizontal, 4608x3456, fixed focus
+#   2 front             HAL id 3,  3.25 mm, 3648x2736, 4K video
+#   3 back  telephoto   HAL id 52, 6 mm, 37.1 deg horizontal, 4032x3024, AF
+# (HAL id 1, a cropped copy of the front sensor, is hidden.) Zoom factors from
+# tan(hfov/2) against the main camera: ultra-wide 0.51, telephoto 1.95.
+[apps/jolla-camera]
+backCameraLabels=['1.0', '0.5', '2.0']
+
+# "Swipe down to access camera settings" appeared on every camera launch.
+# jolla-camera 1.3.2's CameraModeHint shows while this counter is <= 3 but,
+# unlike CameraRollHint, never calls counter.increase(), so it never runs out.
+# Start the counter past the limit so the hint is retired.
+[sailfish/camera]
+camera_mode_hint_count=4

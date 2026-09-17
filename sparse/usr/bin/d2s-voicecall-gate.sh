@@ -31,10 +31,16 @@
 # either: radioInterface=1.1 and 1.0 were both measured, neither delivers a
 # Strength.
 #
-# So the gate is dropped instead. Consequence: no signal-strength readout in
-# the Dialler (the status bar is unaffected), and a genuinely out-of-coverage
-# call attempt fails at the network instead of being refused up front. That is
-# a better trade than a phone that cannot dial at all.
+# UPDATE: a NEWER interface does. The vendor libril accepts a strength report
+# only at exactly 60 (1.0), 80 (1.2) or 100 bytes (1.4), and this RIL sends
+# the 1.4 layout, so with radioInterface = 1.4 (binder.d/dual-sim.conf) ofono
+# gets a real Strength and the status bar shows bars.
+#
+# The gate stays dropped anyway, as a safety net: if strength reports ever stop
+# again, the phone must still be able to dial. Consequence: a genuinely
+# out-of-coverage call attempt fails at the network instead of being refused up
+# front (status != registered is still checked). That is a better trade than a
+# phone that cannot dial at all.
 #
 # WHAT IT DOES
 #
@@ -43,7 +49,7 @@
 # with it on update; patching in place at boot is the least invasive option.
 # If a Sailfish update rewrites the file, this simply patches it again.
 #
-# Revisit if ofono ever reports a real Strength - then drop this entirely.
+# Could be dropped now that ofono reports a real Strength (see UPDATE above).
 
 Q=/usr/share/voicecall-ui-jolla/AppVoiceCallManager.qml
 LOG=/var/lib/hybris-fix/voicecall-gate.log

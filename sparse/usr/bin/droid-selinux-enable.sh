@@ -6,6 +6,12 @@
 # But Sailfish's systemd is built +SELINUX on a rootfs with no SELinux xattrs,
 # so systemd-tmpfiles and systemd-logind SIGSEGV if selinuxfs exists when they
 # start. Verified: same binary, same config - no selinuxfs rc=0, selinuxfs rc=139.
+# Root cause, found later: with selinuxfs present every systemd daemon calls
+# selabel_open(), which fails with no file-context database, and libselinux
+# then crashes in its own cleanup. droid-config now ships an empty database
+# (/etc/selinux/targeted/contexts/files/file_contexts), which fixes that for
+# daemons started at any time (systemd-resolved, hostnamed, ...). The late
+# mount below is kept because it is proven and costs nothing.
 #
 # We must therefore run after logind has started. We CANNOT express that as
 # After=systemd-logind.service: logind sorts after basic.target, and

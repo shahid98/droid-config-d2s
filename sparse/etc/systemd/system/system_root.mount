@@ -1,0 +1,23 @@
+# Mount the Android system partition for a system-as-root layout.
+#
+# LOS 18.1 for d2s is system-as-root: the partition's root holds "bin ->
+# /system/bin" next to a real system/ directory. droid-hal's packaged
+# system.mount puts that partition straight on /system, which makes
+# /system/bin a symlink loop and droid-hal-init cannot be exec'd at all.
+# Mount the partition here instead and bind the nested directory over /system
+# (see system.mount). droid-hal-early-init.sh does the same bind as a fallback
+# for images that still mount the partition directly.
+[Unit]
+Description=Mount Android system partition (system-as-root)
+Before=local-fs.target
+DefaultDependencies=no
+
+[Mount]
+What=/dev/disk/by-partlabel/system
+Where=/system_root
+Type=ext4
+Options=ro
+TimeoutSec=10
+
+[Install]
+WantedBy=local-fs.target

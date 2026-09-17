@@ -1,0 +1,17 @@
+# Camera IDs for the Note 10+ (read by our camera service: the "(hybris)"
+# patch in frameworks/av CameraProviderManager.cpp).
+#
+# Samsung's stock camera provider (vendor.samsung.hardware.camera.provider@3.0)
+# returns only IDs 0-3 from getCameraIdList():
+#   0  back main        4.3 mm, 12 MP
+#   1  front, 16:9 crop 6.5 MP at 4:3, no 4K video
+#   2  back ultra-wide  1.8 mm, 16 MP
+#   3  front, full      10 MP, 4K video
+# The 2x telephoto is ID 52, the ID LineageOS' own provider adds for every
+# exynos9820 model except the S10e. Offer it too, and hide the cropped front
+# ID 1 so apps, which take the first camera of each facing, use the full
+# 10 MP front sensor. Resulting API1 camera numbers: 0 main, 1 ultra-wide,
+# 2 front, 3 telephoto.
+on early-init
+    setprop ro.camera.extra_ids 52
+    setprop ro.camera.hidden_ids 1

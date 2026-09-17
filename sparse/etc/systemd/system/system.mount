@@ -1,0 +1,20 @@
+# Bind the real system directory of the system-as-root partition over /system.
+# Overrides droid-hal's /usr/lib/systemd/system/system.mount, which mounts the
+# partition itself on /system - see system_root.mount for why that does not
+# work here.
+[Unit]
+Description=Droid bind mount for /system (system-as-root)
+Requires=system_root.mount
+After=system_root.mount
+Before=local-fs.target
+DefaultDependencies=no
+
+[Mount]
+What=/system_root/system
+Where=/system
+Type=none
+Options=bind
+TimeoutSec=10
+
+[Install]
+WantedBy=local-fs.target
