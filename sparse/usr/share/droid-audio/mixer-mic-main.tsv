@@ -1,0 +1,41 @@
+# Built-in (bottom) microphone -> ABOX WDMA1 (hw:0,13), plain AP capture.
+#
+# Taken from Samsung's /vendor/etc/mixer_paths_r18.xml: <path name="dev-main-mic">
+# plus <path name="gain-media-mic">, plus the NSRC0 source select. Verified on
+# device by loopback: a 1 kHz tone played on the speaker was captured at
+# 1 kHz-bin 153.5 (rms 217) against a 0.00 / rms 0.7 noise floor.
+#
+# Deliberately NOT Samsung's full "media-mic" path. It pulls in
+# route-ap-record, which sets ABOX WDMA1_EN=On and VPCMIN_DAI0_EN=On with
+# VPCMIN_DAI0_A=WDMA1. That hands WDMA1 to the Calliope DSP's MMAP voice-input
+# pipeline, which then waits for an MMAP consumer that only Samsung's
+# libaudioproxy opens - the DSP logs "VPCMIN DAI0 not opened yet" every 125 ms,
+# no data ever reaches the AP and every read fails with EIO. With both hooks
+# off, WDMA1 streams to the AP normally. They are pinned Off below so a
+# leftover or future default cannot re-enable them.
+#
+#
+# GAIN: IN3R Digital Volume is 168 (+20 dB), not Samsung's 96. The control
+# runs 0..191 in 0.5 dB steps from -64 dB, so Samsung's gain-media-mic value
+# of 96 is -16 dB - their HAL/DSP adds its own gain on top, which we do not
+# have. At 96 speech recorded around -45..-50 dBFS and played back as near
+# silence. Measured by loopback (1 kHz on the speaker, played straight to
+# hw:0,1 with the PulseAudio sink suspended, captured through PulseAudio):
+#   128 (  0 dB) tone peak  503 (-36 dBFS)  noise rms 10
+#   160 (+16 dB) tone peak 3165 (-20 dBFS)  noise rms 22
+#   176 (+24 dB) tone peak 8296 (-12 dBFS)  noise rms 98, no clipping
+# 168 puts normal speech near -10 dBFS with headroom for loud voices.
+#
+# Do NOT experiment by opening the abox_vdma capture devices (hw:1,x) while
+# WDMA1 is open: that combination hung audio tasks and the kernel's hung-task
+# panic reset the phone, repeatedly.
+LHPF1 Input 1	IN3R
+ISRC1INT1 Input 1	LHPF1
+AIF1TX1 Input 1	ISRC1INT1
+AIF1TX2 Input 1	ISRC1INT1
+DMIC1 Switch	1
+IN3R Digital Volume	168
+ABOX NSRC0	UAIF0
+ABOX SIFM0	WDMA
+ABOX WDMA1_EN	Off
+ABOX VPCMIN_DAI0_EN	Off

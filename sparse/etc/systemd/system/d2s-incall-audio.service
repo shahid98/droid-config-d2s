@@ -1,0 +1,20 @@
+[Unit]
+Description=Apply Samsung's in-call ALSA route while a call is up (d2s)
+# The boot route must be in place first: this service only applies the delta on
+# top of it, and restores it when the call ends.
+After=droid-alsa-mixer.service ofono.service dbus.service
+Wants=droid-alsa-mixer.service
+# The watcher follows a gdbus monitor bound to ofono's name on the bus, so it
+# must be restarted whenever ofono is - otherwise it sits there watching a
+# service that no longer exists and silently never applies the route again.
+PartOf=ofono.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/d2s-incall-audio.sh
+# It follows a gdbus monitor that can be dropped if ofono restarts.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

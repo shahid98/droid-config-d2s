@@ -1,0 +1,14 @@
+[Unit]
+Description=Drop the Dialler's signal-strength gate so calls can be placed (d2s)
+# The QML is read when voicecall-ui starts, and that is prestarted inside the
+# user session, so patching any time during multi-user setup is early enough.
+After=local-fs.target
+ConditionPathExists=/usr/share/voicecall-ui-jolla/AppVoiceCallManager.qml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/d2s-voicecall-gate.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

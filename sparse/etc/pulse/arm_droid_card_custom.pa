@@ -1,0 +1,93 @@
+### Audio for d2s (Exynos 9825): plain ALSA, NOT module-droid-card.
+###
+### droid.pa includes this file in place of its own
+###     load-module module-droid-card rate=48000
+### line, so whatever is loaded here is what provides the primary sink.
+###
+###
+### WHY module-droid-card IS NOT USED
+###
+### It cannot work on this device, and no argument to it would have helped.
+### The only real audio HAL is /vendor/lib/hw/audio.primary.exynos9825.so and
+### it is 32-bit ONLY. So is /vendor/bin/hw/android.hardware.audio@2.0-service,
+### which is why Samsung never built a 64-bit one. /vendor/lib64/hw/ contains
+### only the AOSP stub (audio.primary.default.so, "Default audio HW HAL",
+### 15 KB, links no implementation) and a 15 KB Samsung shim
+### (audio.sec_primary.default.so) that itself needs the missing 32-bit
+### implementation.
+###
+### Sailfish's PulseAudio is 64-bit and a 64-bit process cannot dlopen a
+### 32-bit library. module-droid-card therefore reached nothing but the stub,
+### which accepts streams, reports success and discards the audio - PulseAudio
+### looked perfectly healthy, routed correctly, applied volume, and the device
+### was silent. That also explains the EINVAL that went unexplained for a long
+### time: the Samsung shim loads the primary HAL, gets the stub, logs
+### "The audio hal does not support to samsung audio hal" and returns -EINVAL.
+###
+###
+### WHY hw:0,1 AND NOT hw:0,0
+###
+### RDMA0 (hw:0,0) is the obvious choice and it is broken. The Calliope DSP
+### accepts the whole sequence - opens the channel, allocates the entity
+### buffer, takes the hw_params and the start trigger, logs no error - and then
+### never sends PCM_PLTDAI_POINTER back. abox_rdma_pointer() only advances when
+### that message arrives, so hw_ptr sits at 0 while appl_ptr climbs and ALSA
+### eventually fails the write with EIO. Not a format problem: every channel
+### and width combination behaves identically, and mmap access hangs instead of
+### erroring.
+###
+### RDMA1 and several others are fine. Scanning every playback device, only
+### RDMA0 and RDMA4 fail. On RDMA1 the pointer advances normally and the
+### cs35l41 amps report real cone excursion (0.3899) and voice-coil heating,
+### i.e. the speakers physically move. ABOX SPUS OUT1 is already routed to
+### SIFS0 by the initial mixer block, so RDMA1 reaches the speaker amps by the
+### same path RDMA0 would have.
+###
+###
+### The sink MUST be called sink.primary-out. Sailfish's routing tables
+### (/etc/pulse/x-maemo-route.table, xpolicy.conf) and module-policy-enforcement
+### address the primary output by that name; renaming it leaves every stream
+### routed at a sink that no longer exists.
+###
+### tsched=0 because the ABOX DMA reports position by DSP message rather than
+### by a free-running hardware counter, which is not a good fit for PulseAudio's
+### timer-based scheduling. Explicit fragments keep the period at 4096 frames.
+###
+### Routing comes from droid-alsa-mixer.service, which applies Samsung's own
+### media-dual-speaker path. Without it this sink opens cleanly and is still
+### silent, because nothing has connected SIFS0 to the amps.
+###
+###
+### WHY THE droid.output.* PROPERTIES
+###
+### The name alone is not enough. module-policy-enforcement resolves devices
+### by sink PROPERTY, not by name - /etc/pulse/xpolicy.conf defines the
+### loudspeaker as
+###     [device]
+###     type = ihf
+###     sink = $output_media_latency@equals:$output_equals
+### i.e. "the sink whose droid.output.media_latency is true". module-droid-card
+### sets those properties; module-alsa-sink sets none (only device.api=alsa),
+### so the ihf device matched no sink and every group that follows the route
+### (player, game, ...) was parked on the fallback sink.null. Observed on
+### device: ringtones and system sounds still played, media did not, and PA
+### logged
+###     force stream 'player'/... to sink 'sink.null'
+### with every later route update reporting "identical, no need to move
+### streams". Declaring the properties makes the ihf rule resolve to this sink.
+load-module module-alsa-sink device=hw:0,1 sink_name=sink.primary-out rate=48000 channels=2 format=s16le tsched=0 fragments=4 fragment_size=4096 sink_properties="droid.output.primary=true droid.output.media_latency=true droid.output.low_latency=true"
+
+### MICROPHONE
+###
+### hw:0,13 is ABOX WDMA1, fed from the codec's UAIF0 by the controls in
+### /usr/share/droid-audio/mixer-mic-main.tsv (applied at boot by
+### droid-alsa-mixer.service). Without that routing this source opens and
+### records silence.
+###
+### droid.input.builtin=true for the same reason the sink carries droid.output.*:
+### xpolicy.conf picks the built-in microphone as
+###     source = $input_builtin@equals:$input_equals
+### i.e. "the source whose droid.input.builtin is true". Without it recording
+### streams (Recorder, camera video) are routed to source.null and capture
+### nothing.
+load-module module-alsa-source device=hw:0,13 source_name=source.primary rate=48000 channels=2 format=s16le tsched=0 fragments=4 fragment_size=4096 source_properties="droid.input.builtin=true"

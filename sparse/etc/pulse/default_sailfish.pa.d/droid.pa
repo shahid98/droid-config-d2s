@@ -1,0 +1,59 @@
+### Device-specific replacement for the droid.pa that
+### droid-configs-device/sparse ships.
+###
+### Our sparse/ tree is copied last (see copy_files_from in
+### droid-configs.inc), so this file supersedes the common one. Same package
+### owns both paths, so there is no rpm file conflict.
+###
+### The ONLY change from upstream is that module-droid-hidl is not loaded.
+###
+### WHY
+###
+### This device does not use module-droid-card at all - its audio HAL is
+### 32-bit and PulseAudio is 64-bit, so audio goes through plain ALSA instead.
+### See /etc/pulse/arm_droid_card_custom.pa for the full explanation.
+###
+### module-droid-hidl needs module-droid-card to have loaded a hw module. With
+### no droid card it fails - which would be fine, except that its failure path
+### is buggy: it aborts the whole daemon on the way out.
+###
+###   E: module-droid-hidl.c: Couldn't get hw module functions,
+###      is module-droid-card loaded?
+###   E: protocol-dbus.c: Assertion 'p' failed at
+###      ../src/pulsecore/protocol-dbus.c:1116, function
+###      pa_dbus_protocol_unregister_extension(). Aborting.
+###
+### pa_dbus_protocol_unregister_extension() asserts on a NULL protocol object,
+### because the module unregisters an extension it never registered. Upstream's
+### .nofail wrapper does not help: .nofail only tolerates a module *declining*
+### to load, and this one calls abort().
+###
+### The result was PulseAudio crash-looping with the ALSA sink already created
+### and working - "Loaded module-alsa-sink", sink.primary-out INIT -> IDLE,
+### default_sink set - and then dying two lines later, so every client got
+### "Connection refused".
+###
+### module-droid-hidl does nothing useful here anyway. Despite the name it no
+### longer speaks HIDL; it only forwards set_parameters()/get_parameters() out
+### of PulseAudio to the droid hw module, and there is no droid hw module.
+### pulseaudio-modules-droid-hidl is also dropped from the adaptation pattern,
+### so on a fresh image the .ifexists below would fail anyway. This file keeps
+### the daemon safe even if something else pulls the package back in.
+
+### If droid-card needs other arguments than the default, have the new
+### load-module line in /etc/pulse/arm_droid_card_custom.pa
+.ifexists /etc/pulse/arm_droid_card_custom.pa
+ .include /etc/pulse/arm_droid_card_custom.pa
+.else
+ load-module module-droid-card rate=48000
+.endif
+
+### Needed on devices with older Android bases.
+### HADK guide explains how to implement this fully
+.ifexists module-droid-glue.so
+ .nofail
+ load-module module-droid-glue
+ .fail
+.endif
+
+### module-droid-hidl deliberately omitted - see the header above.

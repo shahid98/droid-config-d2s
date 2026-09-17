@@ -1,0 +1,24 @@
+[Unit]
+Description=Apply Samsung's speaker mixer path directly through ALSA
+# The sound card is an in-kernel driver, so this does not strictly depend on
+# droid-hal-init. Order after it anyway so the cs35l41 amps have finished
+# loading their DSP firmware and /vendor is mounted for anything that wants to
+# read the vendor tables by hand.
+After=droid-hal-init.service
+
+[Service]
+# oneshot + RemainAfterExit: the settings are volatile but persist for the life
+# of the boot, so this needs to run exactly once and then stay "active" so the
+# unit reads as successful rather than dead.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/droid-alsa-mixer.sh
+
+# Deliberately NOT Before= anything in the user session. PulseAudio opening the
+# PCM does not clear these controls, so if the session wins the race the only
+# cost is that a sound played in the first second or two is silent. Ordering
+# the boot transaction around a user service is what deadlocked the job queue
+# when droid-wifi-firmware.service tried it.
+
+[Install]
+WantedBy=multi-user.target
