@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <remote name="themuppets"
+          fetch="https://github.com/TheMuppets/" />
+
+  <project path="device/samsung/d2s"
+           name="LineageOS/android_device_samsung_d2s"
+           remote="github" revision="lineage-18.1" />
+  <project path="device/samsung/exynos9820-common"
+           name="LineageOS/android_device_samsung_exynos9820-common"
+           remote="github" revision="lineage-18.1" />
+  <project path="kernel/samsung/exynos9820"
+           name="LineageOS/android_kernel_samsung_exynos9820"
+           remote="github" revision="lineage-18.1" />
+  <project path="hardware/samsung"
+           name="LineageOS/android_hardware_samsung"
+           remote="github" revision="lineage-18.1" />
+  <project path="device/samsung_slsi/sepolicy"
+           name="LineageOS/android_device_samsung_slsi_sepolicy"
+           remote="github" revision="lineage-18.1" />
+
+  <project path="vendor/samsung"
+           name="proprietary_vendor_samsung"
+           remote="themuppets" revision="lineage-18.1"
+           clone-depth="1" />
+  <project path="external/libhybris" name="mer-hybris/libhybris" remote="github" revision="android11" />
+</manifest>
