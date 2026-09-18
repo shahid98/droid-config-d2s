@@ -1,0 +1,481 @@
+<title>Sailfish OS for Note 10+</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #eef1f2;
+    --surface: #ffffff;
+    --surface-sunk: #e4e9ea;
+    --line: #d2d9db;
+    --line-soft: #e2e7e9;
+    --text: #16242a;
+    --text-dim: #52666f;
+    --accent: #0f8c9c;
+    --accent-ink: #085c68;
+    --ok: #2f7a55;
+    --ok-bg: #dcece4;
+    --warn: #96631a;
+    --warn-bg: #f2e7d3;
+    --no: #a8443c;
+    --no-bg: #f3dedc;
+    --code-bg: #f6f8f8;
+    --shadow: 0 1px 2px rgba(22, 36, 42, .06);
+    --measure: 68ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1417;
+      --surface: #141e22;
+      --surface-sunk: #101a1d;
+      --line: #27363b;
+      --line-soft: #1e2b2f;
+      --text: #e3ecee;
+      --text-dim: #93a6ad;
+      --accent: #3cc3d1;
+      --accent-ink: #8ddde6;
+      --ok: #6cc294;
+      --ok-bg: #16302a;
+      --warn: #d7a458;
+      --warn-bg: #2f2718;
+      --no: #e08d84;
+      --no-bg: #331f1e;
+      --code-bg: #0f181b;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0d1417;
+    --surface: #141e22;
+    --surface-sunk: #101a1d;
+    --line: #27363b;
+    --line-soft: #1e2b2f;
+    --text: #e3ecee;
+    --text-dim: #93a6ad;
+    --accent: #3cc3d1;
+    --accent-ink: #8ddde6;
+    --ok: #6cc294;
+    --ok-bg: #16302a;
+    --warn: #d7a458;
+    --warn-bg: #2f2718;
+    --no: #e08d84;
+    --no-bg: #331f1e;
+    --code-bg: #0f181b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    padding-inline: 20px;
+    padding-block: 0 72px;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  h1, h2, h3 {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace; }
+
+  /* ---------- masthead ---------- */
+  header.top {
+    border-bottom: 1px solid var(--line);
+    padding-block: 48px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+  }
+  h1 { font-size: clamp(30px, 6vw, 46px); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .standfirst { max-width: var(--measure); color: var(--text-dim); font-size: 19px; margin: 0; }
+
+  .specs {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 2px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .specs div { background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+  .specs dd { margin: 0; }
+  .specs dt, .spec-k {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .spec-v { font-family: "IBM Plex Mono", monospace; font-size: 15px; overflow-wrap: anywhere; }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 40px 0; }
+  section > h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+  }
+  section > p, section > ol, section > ul { max-width: var(--measure); }
+  p { margin: 14px 0; }
+  a { color: var(--accent-ink); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .lede { font-size: 18px; }
+
+  /* ---------- status rows ---------- */
+  .rows { margin-top: 20px; display: flex; flex-direction: column; gap: 1px; background: var(--line-soft); border-block: 1px solid var(--line-soft); }
+  .row {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 18px;
+    padding: 14px 16px;
+    align-items: start;
+  }
+  .row h3 { font-size: 17px; font-weight: 600; }
+  .row p { grid-column: 1 / -1; margin: 0; color: var(--text-dim); font-size: 16px; max-width: var(--measure); }
+  .pill {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 2px;
+    white-space: nowrap;
+    align-self: center;
+  }
+  .pill.ok { color: var(--ok); background: var(--ok-bg); }
+  .pill.part { color: var(--warn); background: var(--warn-bg); }
+  .pill.no { color: var(--no); background: var(--no-bg); }
+
+  /* ---------- lens row ---------- */
+  .lenses { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .lens {
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 1px solid var(--line);
+    display: grid; place-items: center;
+    font-family: "IBM Plex Mono", monospace; font-size: 14px;
+    color: var(--text-dim);
+    background: var(--surface);
+  }
+  .lens.now { border-color: var(--accent); color: var(--accent-ink); border-width: 2px; }
+  .lens small { display: block; font-size: 10px; letter-spacing: .06em; }
+  .lens-note { color: var(--text-dim); font-size: 15px; }
+
+  /* ---------- steps ---------- */
+  ol.steps { counter-reset: step; list-style: none; margin: 22px 0 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 14px; }
+  ol.steps > li::before {
+    content: counter(step);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 14px;
+    color: var(--accent-ink);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    background: var(--surface);
+  }
+  ol.steps h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  ol.steps p { margin: 4px 0; color: var(--text-dim); }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 12px 0 0;
+  }
+  pre code { color: var(--text); }
+  pre .c { color: var(--text-dim); }
+  :not(pre) > code { background: var(--code-bg); border: 1px solid var(--line-soft); border-radius: 2px; padding: 1px 5px; font-size: .92em; overflow-wrap: anywhere; }
+
+  .callout {
+    margin-top: 20px;
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 14px 18px;
+    max-width: var(--measure);
+    box-shadow: var(--shadow);
+  }
+  .callout h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .callout p { margin: 4px 0 0; color: var(--text-dim); font-size: 16px; }
+
+  ul.plain { margin: 14px 0; padding-left: 20px; }
+  ul.plain li { margin: 7px 0; }
+
+  footer { margin-top: 56px; border-top: 1px solid var(--line); padding-top: 22px; color: var(--text-dim); font-size: 15px; max-width: var(--measure); }
+  footer p { margin: 8px 0; }
+
+  @media (max-width: 460px) {
+    body { font-size: 16px; }
+    .row { grid-template-columns: 1fr; }
+    .pill { justify-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Community port · alpha</span>
+    <h1>Sailfish OS 5.1.0.11 for the Galaxy Note 10+</h1>
+    <p class="standfirst">An unofficial port of Sailfish OS “Pispala” to the Exynos Note 10+, built on a
+      hybris-18.1 (LineageOS 18.1) base. It works as a phone — calls, SMS, LTE, WiFi, camera, GPS — with
+      real gaps listed below. Installing erases the device, and there is no Android app support.</p>
+
+    <dl class="specs">
+      <div><dt class="spec-k">Model</dt><dd class="spec-v">SM-N975F only</dd></div>
+      <div><dt class="spec-k">Chipset</dt><dd class="spec-v">Exynos 9825 · d2s</dd></div>
+      <div><dt class="spec-k">Release</dt><dd class="spec-v">sailfishos-d2s-release-5.1.0.11.zip</dd></div>
+      <div><dt class="spec-k">sha256</dt><dd class="spec-v">34bf8c1c92513cd6…5d433581</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <h2>Before anything else</h2>
+    <p class="lede">Not for SM-N975U or N975W (Snapdragon), and not for the N976 5G variants. Those have
+      different hardware and this build will not run on them.</p>
+    <div class="callout">
+      <h3>The base ROM matters</h3>
+      <p>This port is built against the vendor files from the unofficial LineageOS 18.1 build for d2s by
+        <strong>ivanmeler</strong>. A different LineageOS build or stock firmware can bring back a black
+        camera viewfinder, because the camera driver and the vendor camera library have to match.</p>
+    </div>
+    <div class="callout">
+      <h3>There is a root shell over USB</h3>
+      <p>Like every hybris port, the phone runs a telnet shell on the USB network
+        (<code>192.168.2.15</code>, port <code>2323</code>) with no password. Anyone who can plug a PC into
+        your phone has root on it. Decide whether that suits you before daily-driving this.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What works</h2>
+
+    <div class="rows">
+      <div class="row">
+        <h3>Calls, SMS and mobile data</h3>
+        <span class="pill ok">Working</span>
+        <p>Dialling and SMS work with two-way audio through the earpiece, and emergency calling reaches a
+          dispatcher. LTE data works and survives a reboot. The call audio path is set up by a service written
+          for this port — Sailfish’s usual route needs a 64-bit vendor HAL this phone does not have.</p>
+      </div>
+      <div class="row">
+        <h3>WiFi and Bluetooth</h3>
+        <span class="pill ok">Working</span>
+        <p>WiFi connects with the correct MAC address. Bluetooth powers on and finds devices — but see audio
+          routing below before you pair headphones.</p>
+      </div>
+      <div class="row">
+        <h3>Display, touch and sensors</h3>
+        <span class="pill ok">Working</span>
+        <p>Full 1440 × 3040 at the right scaling, auto-rotation, double-tap to wake, and the proximity sensor
+          (the screen blanks against your ear). The status bar knows where the punch-hole camera is, so the
+          clock is not hidden behind it.</p>
+      </div>
+      <div class="row">
+        <h3>Camera — all three rear lenses</h3>
+        <span class="pill ok">Working</span>
+        <p>Stills and video with sound, front and back. Samsung’s camera service hides the telephoto from
+          ordinary apps; this port asks for it by name, so the camera app can switch between them. The front
+          camera uses the full 10 MP sensor rather than the cropped mode Android offers first, and 4K
+          recording runs at about 19 Mbit/s.</p>
+        <div class="lenses" style="grid-column: 1 / -1;">
+          <span class="lens">0.5<small>ultra</small></span>
+          <span class="lens now">1.0<small>main</small></span>
+          <span class="lens">2.0<small>tele</small></span>
+          <span class="lens-note">16 MP · 12 MP · 12 MP</span>
+        </div>
+      </div>
+      <div class="row">
+        <h3>Video playback and audio</h3>
+        <span class="pill ok">Working</span>
+        <p>Hardware decoding: 1080p and 1440p are smooth in the browser, and VP9 plays in third-party YouTube
+          clients. Speaker playback, microphone recording and vibration all work.</p>
+      </div>
+      <div class="row">
+        <h3>GPS</h3>
+        <span class="pill ok">Working</span>
+        <p>Including assistance data, so fixes are not a cold start every time. Indoors a cold start took
+          about two minutes and landed within 16 m. Location is off by default — switch it on in Settings.</p>
+      </div>
+      <div class="row">
+        <h3>USB: MTP, developer mode, charging only</h3>
+        <span class="pill ok">Working</span>
+        <p>File transfer measured around 60 MB/s writing and 34 MB/s reading. Developer mode gives you a USB
+          network and SSH.</p>
+      </div>
+      <div class="row">
+        <h3>Battery and charging</h3>
+        <span class="pill ok">Working</span>
+        <p>Level and charging state report correctly, and the phone idles properly — an earlier build kept one
+          CPU core busy from boot.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What does not work</h2>
+
+    <div class="rows">
+      <div class="row">
+        <h3>Android apps</h3>
+        <span class="pill no">Not available</span>
+        <p>Jolla’s Alien Dalvik is licensed only to officially supported devices. Waydroid is not included or
+          tested — the kernel has what it needs, but nobody has run it here yet.</p>
+      </div>
+      <div class="row">
+        <h3>Audio routing</h3>
+        <span class="pill part">Speakers only</span>
+        <p>Headphones, the earpiece for media, and Bluetooth audio are not switched automatically. Bluetooth
+          connects, but it will not play your music.</p>
+      </div>
+      <div class="row">
+        <h3>In-call volume slider</h3>
+        <span class="pill no">Inert</span>
+        <p>The slider does not change the volume, and the in-call speaker button is not wired to the routing
+          this port uses.</p>
+      </div>
+      <div class="row">
+        <h3>Fingerprint reader</h3>
+        <span class="pill no">Unsupported</span>
+        <p>Sailfish has no driver for this ultrasonic sensor.</p>
+      </div>
+      <div class="row">
+        <h3>NFC and the S-Pen</h3>
+        <span class="pill no">Untested</span>
+        <p>Assume they do not work.</p>
+      </div>
+      <div class="row">
+        <h3>Smaller gaps</h3>
+        <span class="pill part">Known</span>
+        <p>IPv6 on mobile data has no route (everything falls back to IPv4, which is fine in practice). USB
+          tethering is not included. 4K60 in the browser stutters slightly. The boot splash is a still logo,
+          not an animation. In the Bluetooth device list, nearby phones and trackers using randomised
+          addresses show as bare MAC addresses — they broadcast no name, and Sailfish lists them where
+          Android hides them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Flashing</h2>
+    <p>You need a PC with <code>adb</code> and Heimdall (Linux) or Odin (Windows), and an unlocked
+      bootloader — enable <em>OEM unlocking</em> in Android’s developer options first. <strong>Everything on
+      the phone is erased</strong>, including internal storage.</p>
+
+    <ol class="steps">
+      <li>
+        <div>
+          <h3>Flash the stock firmware the port was built against</h3>
+          <p><span class="mono">N975FXXS9HWG9</span> (Android 12), with Heimdall or Odin. This gives you a
+            known-good modem and bootloader.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Flash LineageOS 18.1 and its recovery</h3>
+          <p>ivanmeler’s unofficial build for d2s. Boot it once to confirm the phone is healthy, then go back
+            to recovery.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Format data in recovery</h3>
+          <p>The option that makes you type “yes” — not just a wipe.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Install Sailfish by hand</h3>
+          <p><code>adb sideload</code> is unreliable on this device: it stalls around 47% and writes nothing.
+            Push the parts instead — recovery has no bzip2, so unpack the rootfs on the PC first.</p>
+<pre><code><span class="c"># on the PC</span>
+unzip sailfishos-d2s-release-5.1.0.11.zip -d sfos
+bunzip2 sfos/sailfishos-d2s-release-5.1.0.11.tar.bz2
+
+<span class="c"># with the phone in LineageOS recovery</span>
+adb push sfos/sailfishos-d2s-release-5.1.0.11.tar /data/sfos.tar
+adb push sfos/hybris-boot.img /data/hybris-boot.img
+
+adb shell
+  mkdir -p /data/.stowaways/sailfishos
+  tar xvf /data/sfos.tar -C /data/.stowaways/sailfishos/
+  dd if=/data/hybris-boot.img of=/dev/block/by-name/boot
+  sync
+  rm /data/sfos.tar /data/hybris-boot.img
+  exit</code></pre>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Reboot</h3>
+          <p>The Sailfish logo appears a few seconds in; the first boot then takes a few minutes to prepare
+            the device before the welcome wizard. Later boots reach the homescreen in about half a minute.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>After installing</h2>
+    <ul class="plain">
+      <li><strong>Mobile data not working?</strong> Check the APN in <em>Settings → Mobile network → your SIM →
+        Access Point Name</em>. Sailfish picks one from a public database and it is not always right — on Bell
+        in Canada it chooses the tablet APN <code>inet.bell.ca</code> where phone plans need
+        <code>pda.bell.ca</code>. <strong>Reboot after changing it</strong>: the APN only reaches the modem
+        when telephony starts.</li>
+      <li><strong>GPS:</strong> switch Location on in <em>Settings → Location</em>. Nothing gets a fix until
+        you do.</li>
+      <li><strong>USB mode:</strong> <em>Settings → USB</em> switches between MTP, developer mode and charging
+        only.</li>
+      <li><strong>Storage:</strong> the crash reporter is included in this build. If you never intend to send
+        logs anywhere, clear its reports occasionally — they can grow to hundreds of MB.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Reporting problems</h2>
+    <p>Say what you did and what happened, and include the exact model (<span class="mono">SM-N975F</span>),
+      which LineageOS build you flashed first, and what the screen showed — the Sailfish logo, the welcome
+      wizard, or nothing. For anything radio-related, name your carrier and whether you were on WiFi, 4G or
+      3G at the time.</p>
+  </section>
+
+  <footer>
+    <p><strong>Credits.</strong> LineageOS and ivanmeler for the unofficial 18.1 build for d2s, whose device,
+      kernel and vendor trees this is built on. Jolla for Sailfish OS and the HADK, and the mer-hybris project
+      for the tooling that makes ports like this possible. The boot splash is the cyan Sailfish OS splash by
+      taalojarvi (XDA), rescaled for this panel.</p>
+    <p>The port’s own work sits on <span class="mono">d2s-sailfish-port</span> branches: kernel fixes (camera
+      metadata layout, MTP SuperSpeed descriptors, vibrator firmware), droidmedia fixes for recording and
+      hardware decode, the camera service patch that exposes the telephoto, the GPS assistance-data fix, and
+      the device configuration package.</p>
+  </footer>
+</div>
