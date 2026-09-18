@@ -10,6 +10,28 @@
 E=/var/lib/hybris-fix/empty.rc
 K=/var/lib/hybris-fix/ok.sh
 
+# Create the two bind-mount sources here rather than shipping them.
+#
+# Everything below shadows an Android .rc file or binary by bind-mounting one of
+# these over it: $E is an empty file (an .rc that defines no services), $K a
+# script that succeeds and does nothing. They existed on the development device
+# because they had been made there by hand, so nothing ever noticed that the
+# package did not carry them - until a clean flash, where the whole script died
+# at the first `mount --bind` with a missing source and exited 1. Every shadow
+# was then skipped, which above all meant Android's surfaceflinger and
+# bootanimation started (section 7) and deadlocked the device against lipstick:
+# a black screen, load average 12, and no UI.
+#
+# Making them here means the script owns them outright, so no packaging change
+# can separate the script from the files it cannot run without.
+mkdir -p /var/lib/hybris-fix
+[ -f "$E" ] || : > "$E"
+if [ ! -s "$K" ]; then
+    printf '#!/bin/sh\nexit 0\n' > "$K"
+fi
+chmod 0644 "$E"
+chmod 0755 "$K"
+
 # 1. Flattened APEX.
 # LOS 18.1 is not an updatable-APEX device, so apexd exits immediately and
 # init's own ActivateFlattenedApexesIfPossible() is compiled out by the hybris
@@ -274,5 +296,13 @@ if [ ! -s /etc/hostname ] || [ "$(cat /etc/hostname 2>/dev/null)" = "UNKNOWN" ];
 fi
 /bin/hostname -F /etc/hostname 2>/dev/null || \
     /bin/hostname "$(cat /etc/hostname)" 2>/dev/null
+
+# This unit is a list of independent best-effort fixups, each guarded on its
+# own, so the exit status of whatever happens to be written last says nothing
+# about whether the boot is healthy - it just decides whether `systemctl
+# --failed` lists this unit. Leaving that to chance sent this port's diagnosis
+# down the wrong path once already. Report success and let the individual
+# symptoms speak for themselves.
+exit 0
 
 exit 0
