@@ -81,65 +81,76 @@ Then open the **Waydroid** app. First start takes about a minute.
 | Browser, general apps | Working | |
 | Networking | Working | `waydroid0` bridge, container at 192.168.240.x, NAT to the phone's connection. |
 | Sensors | Bridged | `waydroid-sensord` runs on the **host** against `/dev/anbox-hwbinder` and registers `android.hardware.sensors@1.0` into the container. This is the pattern any other host HAL would have to follow. |
-| **Shared storage** (Gallery, Documents, anything under `/storage/emulated/0`) | **Broken** | See below. |
-| **Camera** | **Broken** | See below. |
+| Shared storage (Gallery, Documents, `/storage/emulated/0`) | Working **on the Android 11 image** | Broken on the stock Android 13 image - see "The system image matters" below. |
+| Camera | Enumerates on Android 11 | 5 devices visible where Android 13 showed 0; a working preview is **not yet confirmed**. |
+| Audio out | Working, capped | Waydroid talks to PulseAudio directly, so Sailfish's volume policy does not apply: it arrives at 95% of full scale and the speaker amps clip, which sounds like the volume is stuck at 200%. `d2s-bt-audio.service` caps the stream at 45%, the level where it came back clean by ear on both the speaker and a Bluetooth headset. Android's own volume slider still works underneath. |
+| Microphone | Unverified | Android reports `Input device: 0 (AUDIO_DEVICE_NONE)` when idle, which is inconclusive; needs a recording test. VoIP (WhatsApp calls) depends on this. |
+| Battery level | **Wrong, and not ours** | The container reads the real battery fine (`/sys/class/power_supply/battery/capacity` is correct inside it), but `dumpsys battery` reports level 85, voltage 3600, temperature 350 - hardcoded stubs in Waydroid's own `android.hardware.health@2.0-service.waydroid`, which never reads the host. Only a patched vendor image or a host bridge (as `waydroid-sensord` does for sensors) would fix it. |
+| WiFi | Shows nothing, by design | The container's active network is **Ethernet** (`eth0` on the `waydroid0` bridge); it has no WiFi hardware, so the WiFi screen is always empty. Apps see a connected network and work. `persist.waydroid.fake_wifi` makes named apps believe they are on WiFi, for apps that refuse to act otherwise. |
 
-### Shared storage
+### The system image matters: use Android 11, not the stock Android 13
 
-`/storage/emulated/0` is empty in the container and no FUSE mount ever appears.
-`vold` logs `Mounting emulated fuse volume`, then after 20 s
-`StorageSessionController: Failed to start session: [SessionId: emulated;0.
-UpperPath: /storage/emulated. LowerPath: /data/media]`, then
-`ActivityManager: Timeout executing service ... ExternalStorageServiceImpl`,
-and `com.android.providers.media.module` is killed and restarted forever
-(4 s, 16 s, 64 s backoff). Gallery and Documents hang waiting on it;
-`com.android.externalstorage.documents` returns no roots.
+`waydroid init` downloads the current LineageOS **20** image (Android 13) and
+pairs it with the **HALIUM_11** vendor shim, i.e. an Android 13 system on an
+Android 11 vendor. Two things break on that combination, and both work when the
+system image matches the vendor:
 
-Ruled out:
+| | Android 13 (lineage-20, the default) | Android 11 (lineage-18.1) |
+|---|---|---|
+| `/storage/emulated/0` | empty, no FUSE mount ever appears | the real Android tree, FUSE mounted, sdcardfs on `Android/data` |
+| MediaProvider | killed and restarted forever (4 s, 16 s, 64 s backoff); Gallery and Documents hang | zero crashes |
+| Cameras seen by `dumpsys media.camera` | 0 | 5 |
 
-- `/dev/fuse` **is** present in the container (10, 229) and `CONFIG_FUSE_FS=y`.
-- The kernel **does** carry the Android FUSE extensions (`FUSE_CANONICAL_PATH`
-  is in `include/uapi/linux/fuse.h` and `fs/fuse/dir.c`), so this is not simply
-  an unpatched mainline FUSE.
-- `persist.sys.fuse=false` + restarting MediaProvider changes nothing; Android
-  13 no longer honours it.
-- No tombstone and **no FuseDaemon output at all** — the daemon hangs before it
-  logs anything, rather than crashing.
+On Android 13 `vold` logged `Mounting emulated fuse volume`, then 20 s later
+`StorageSessionController: Failed to start session ... UpperPath:
+/storage/emulated LowerPath: /data/media`, then
+`Timeout executing service ... ExternalStorageServiceImpl`. `/dev/fuse` was
+present, `CONFIG_FUSE_FS=y`, the kernel carries the Android FUSE extensions
+(`FUSE_CANONICAL_PATH`), and `persist.sys.fuse=false` changed nothing (Android
+13 ignores it) - the FUSE daemon simply hung before logging anything. Android 13
+made FUSE-based MediaProvider mandatory; Android 11 still works with the
+`sdcardfs` this 4.14 Samsung kernel implements.
 
-Most likely the mismatch itself: an Android 13 MediaProvider FUSE daemon on a
-4.14 Samsung kernel whose own storage stack is `sdcardfs` (`CONFIG_SDCARD_FS=y`).
-Next things to try, in order of cost: strace the FuseDaemon inside the container;
-check whether LXC's seccomp profile (`/var/lib/waydroid/lxc/waydroid/waydroid.seccomp`)
-blocks its `mount`; or initialise with an older Android 11 system image, which
-matches the HALIUM_11 vendor and predates mandatory FUSE storage (upstream only
-serves lineage-20 now, but the archive on SourceForge still has 17.1/18.1
-images).
+Upstream only serves lineage-20 now, so the 18.1 image comes from the archive:
+
+    https://sourceforge.net/projects/waydroid/files/images/system/lineage/waydroid_arm64/
+    lineage-18.1-20250628-VANILLA-waydroid_arm64-system.zip   (or -GAPPS-)
+
+Swapping it in by hand, if `waydroid init` has already run:
+
+    waydroid session stop
+    mv /var/lib/waydroid/images/system.img /var/lib/waydroid/images/system.img.a13
+    cp <the 18.1 system.img> /var/lib/waydroid/images/system.img
+    mv ~defaultuser/.local/share/waydroid/data ~defaultuser/.local/share/waydroid/data.a13
+
+**The data directory must go too.** Android 11's PackageManager cannot read
+Android 13's state and system_server dies on every boot with
+`NullPointerException ... Settings$VersionInfo.sdkVersion` in
+`readStateForUserSyncLPr`, taking zygote with it. Note the session data lives in
+the **user's** home, not in `/var/lib/waydroid/data`.
+
+The Waydroid Updater app inside the container will offer to "upgrade" to 20.0.
+Do not take it: that is the broken combination.
 
 ### Camera
 
-The container ends up with **0 cameras**. Its provider is
-`vendor.camera-provider-2-4` from Waydroid's HALIUM vendor image — the AOSP
+The container ends up with 0 cameras **on the Android 13 image**. Its provider is
+`vendor.camera-provider-2-4` from Waydroid's HALIUM vendor image - the AOSP
 *legacy passthrough* provider, which `dlopen`s a legacy `camera.<hw>.so` module:
 
     CamPrvdr@2.4-legacy: Could not load camera HAL module: -2 (No such file or directory)
     android.hardware.camera.provider@2.4-service: getProviderImpl: camera provider init failed!
 
-and then restarts every 5 s forever (`init.svc.vendor.camera-provider-2-4:
-restarting`). This phone has no legacy camera module: its camera is a HIDL
-service, `vendor.samsung.hardware.camera.provider@3.0-service`, which runs on
-the **host** and serves the host's binder domain — the container cannot see it.
+and then restarts every 5 s forever. This phone has no legacy camera module: its
+camera is a HIDL service, `vendor.samsung.hardware.camera.provider@3.0-service`,
+which runs on the **host** and serves the host's binder domain.
 
-That explains the behaviour exactly: a camera app catches the provider during
-one of its brief alive windows, gets a few frames from one rear sensor, and then
-hangs when the provider dies again (`DIED client(s) ... Binder died
-unexpectedly`).
-
-Fixing this properly means bridging the camera the way sensors are bridged: a
-host-side process that registers a camera provider into `/dev/anbox-hwbinder`
-and proxies to Samsung's provider, or running a camera provider inside the
-container against the host's `/vendor` libraries (`/dev/video*` **are** already
-visible in the container). Both are real projects, not configuration. Until then
-Waydroid has no camera — the phone's own camera app is unaffected.
+On the Android 11 image `dumpsys media.camera` reports **5 camera devices**, so
+the picture is better, but a working preview is not yet confirmed. If it turns
+out still not to work, the fix is to bridge the camera the way sensors are
+bridged: a host-side process registering a camera provider into
+`/dev/anbox-hwbinder`, or a camera provider inside the container against the
+host's `/vendor` (`/dev/video*` are already visible there).
 
 ## Debugging recipes
 
