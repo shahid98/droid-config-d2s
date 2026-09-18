@@ -18,8 +18,10 @@ flash.
 ## What works
 
 **Phone and data**
-- Voice calls (the phone dials and connects; emergency calling reaches a
-  dispatcher). In-call audio is routed by a service written for this port.
+- Voice calls, with two-way audio through the earpiece (emergency calling
+  reaches a dispatcher). The call audio path is set up by a service written for
+  this port — Sailfish's usual route needs a 64-bit vendor HAL this phone does
+  not have.
 - SMS.
 - Mobile data on LTE, including after a reboot. Your carrier's APN may need
   fixing by hand — see *After installing*.
@@ -82,9 +84,9 @@ flash.
   back to IPv4, which is fine in practice.
 - **USB tethering is not included.**
 - **4K60 video in the browser stutters slightly.** 1080p and 1440p are fine.
-- **No boot animation yet** in this build: the screen is black between the
-  Samsung logo and the Sailfish welcome screen for up to a minute. That is
-  normal here — wait for it.
+- **The boot splash is a still image, not an animation.** The Sailfish OS
+  logo appears a few seconds after the Samsung logo and stays until the UI is
+  up.
 
 ---
 
@@ -142,9 +144,9 @@ developer options, then unlock in download mode).
      rm /data/sfos.tar /data/hybris-boot.img
      exit
    ```
-6. **Reboot.** The first boot takes a few minutes and the screen stays black
-   for a while — this is expected. The Sailfish welcome wizard appears when it
-   is done.
+6. **Reboot.** The Sailfish logo appears a few seconds in; the first boot then
+   takes a few minutes to prepare the device before the welcome wizard shows.
+   Later boots reach the homescreen in well under a minute.
 
 ---
 
@@ -170,7 +172,7 @@ developer options, then unlock in download mode).
 Say what you did, what happened, and include:
 
 - the exact model (`SM-N975F`) and which LineageOS build you flashed first,
-- what the screen showed (a black screen for a minute at first boot is normal),
+- what the screen showed (the Sailfish logo, the welcome wizard, or nothing),
 - for anything radio-related, your carrier and whether it was on WiFi, 4G or
   3G at the time.
 
