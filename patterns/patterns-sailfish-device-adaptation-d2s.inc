@@ -105,12 +105,18 @@ Requires: rfkill
 
 # enable device lock and allow to select untrusted software.
 #
-# sailfish-devicelock-fpd instead of jolla-devicelock-daemon-encsfa: the two
-# conflict, and the fpd variant is the same encsfa daemon *with* fingerprint
-# support (the unit it installs is sailfish-devicelock-encsfa-fpd.service), so
-# nothing is given up by using it. Without it the fingerprint sensor works at
-# the daemon level but Settings never offers to enrol one.
-Requires: sailfish-devicelock-fpd
+# NOT sailfish-devicelock-fpd, tempting as it looks. It is the encsfa daemon
+# with fingerprint support, and Settings does offer fingerprint enrolment with
+# it - but its daemon requires an encrypted home volume and spins on
+#     encsfa-fpd: Device /dev/sailfish/home does not exist or access denied.
+# on this device, which has no encrypted home. It then cannot authenticate
+# anything, and the lock screen wedges with no way past it (tried 2026-09-18;
+# recovering also needed lipstick-qt5, nemo-qml-plugin-devicelock and
+# lipstick-jolla-home-qt5 reinstalled, since removing it took them along).
+#
+# Fingerprint enrolment and unlocking would need either home encryption enabled
+# or a devicelock plugin that does not insist on it.
+Requires: jolla-devicelock-daemon-encsfa
 
 # Fingerprint: this phone's ultrasonic sensor (Qualcomm qbt2000) works under
 # Sailfish through sailfish-fpd-community, which speaks the same D-Bus API as
@@ -120,6 +126,9 @@ Requires: sailfish-devicelock-fpd
 # both the libbiometry_fp_api glue and that HIDL client library, because
 # LineageOS does not ship the latter. Verified on device: enrolment reached
 # progress 1.0 and authentication matched the finger.
+# The daemon itself is safe and useful on its own: it talks to the hardware and
+# answers org.sailfishos.fingerprint1, which is what mce's fingerprint wakeup
+# uses. Enrolling still needs a devicelock plugin that offers it - see above.
 Requires: sailfish-fpd-community
 Requires: droid-biometry-fp
 
