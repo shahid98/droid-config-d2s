@@ -75,9 +75,10 @@ flash.
   image: install it with `devel-su /usr/bin/d2s-waydroid-setup.sh`, which pulls
   ~1 GB of images. Inside Waydroid the camera and shared storage (Gallery,
   Documents) do not work.
-- **Audio routing is fixed to the speakers.** Headphones, the earpiece for
-  media, and Bluetooth audio are not switched automatically. Bluetooth
-  connects, but it will not play your music.
+- **Audio routing is mostly fixed to the speakers.** Wired headphones and the
+  earpiece for media are not switched automatically. **Bluetooth audio does
+  work** — pair a headset and playback moves to it, and back to the speaker when
+  it disconnects.
 - **The in-call volume slider does nothing**, and the in-call speaker button is
   not wired to the routing this port uses.
 - **The fingerprint reader does not work** (Sailfish has no driver for this
