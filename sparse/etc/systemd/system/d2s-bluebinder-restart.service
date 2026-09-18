@@ -46,8 +46,17 @@ ConditionPathExists=/dev/vhci
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=90
+# The wait is for the vendor HAL to settle, not for the doomed first instance:
+# that one is now killed after 10 s (see bluebinder.service.d/50-d2s-start-
+# timeout.conf) instead of 60, so this runs about a minute earlier in the boot.
 ExecStartPre=/bin/sleep 15
 ExecStart=/bin/sh -c "systemctl restart bluebinder.service"
+# The hci device the restarted bluebinder registers comes up soft-blocked, and
+# nothing else clears it: every power-on then fails with
+# "org.bluez.Error.Blocked: Blocked through rfkill" even though the adapter is
+# healthy. Unblocking only permits power-on - it does not turn Bluetooth on, so
+# the user's own setting still decides.
+ExecStartPost=/bin/sh -c "sleep 2; rfkill unblock bluetooth"
 
 [Install]
 WantedBy=multi-user.target
