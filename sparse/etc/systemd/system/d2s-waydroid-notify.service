@@ -1,0 +1,26 @@
+# Android notifications from the Waydroid container do not reach Sailfish:
+# Waydroid bridges the clipboard, but nothing forwards notifications, so a
+# WhatsApp message is only visible inside the container. This polls
+# `dumpsys notification` and re-posts what is new to the user's
+# org.freedesktop.Notifications. See usr/bin/d2s-waydroid-notify.py for what
+# that approach can and cannot do.
+#
+# A system unit because reading the container needs lxc-attach; it posts to the
+# user's session bus with su. It does nothing while the container is not
+# RUNNING, and does not thaw a frozen container to poll it.
+
+[Unit]
+Description=d2s: forward Waydroid's Android notifications to Sailfish
+After=waydroid-container.service
+Wants=waydroid-container.service
+ConditionPathExists=/var/lib/waydroid/waydroid.cfg
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/d2s-waydroid-notify.py
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
