@@ -26,33 +26,10 @@
 # Reverting needs no work: when the headset disconnects PulseAudio moves the
 # streams off the vanishing sink by itself. This only puts the default back.
 
-#
-# It also caps Waydroid's playback stream. Waydroid talks to PulseAudio
-# directly, so nothing in Sailfish's volume policy applies to it: it arrives at
-# 95% of full scale and the cs35l41 amps clip, which sounds like the volume is
-# stuck at 200% - crackling and distorted on the speaker whatever Android's own
-# slider says. 45% was the level where it came back clean on this device, by
-# ear, on the speaker and on a Bluetooth headset. Android's own volume control
-# still works normally underneath it, and the phone's volume keys still move
-# the sink, so this only removes headroom that was never usable.
-
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 SPEAKER=sink.primary-out
-WAYDROID_MAX=45      # percent; above this the speaker amps clip
 
 pa() { pactl "$@" 2>/dev/null; }
-
-# Clamp Waydroid's stream, whichever sink it is on.
-cap_waydroid() {
-    pa list sink-inputs | awk -v max="$WAYDROID_MAX" '
-        /^Sink Input #/ { id = substr($3, 2); vol = "" }
-        /Volume: front-left/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { vol = $i + 0; break } }
-        /application.name = "Waydroid"/ { if (vol > max) print id }
-    ' | while read -r id; do
-        echo "capping Waydroid stream $id to ${WAYDROID_MAX}%"
-        pa set-sink-input-volume "$id" "${WAYDROID_MAX}%"
-    done
-}
 
 bt_card() { pa list cards short | awk '/bluez_card/ {print $2; exit}'; }
 
@@ -63,8 +40,6 @@ card_profile() {
 }
 
 reroute() {
-    cap_waydroid
-
     card=$(bt_card)
     if [ -z "$card" ]; then
         pa set-default-sink "$SPEAKER"

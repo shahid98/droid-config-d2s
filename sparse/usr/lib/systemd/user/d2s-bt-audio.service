@@ -6,7 +6,7 @@
 # A user unit because it drives PulseAudio, which runs in the user session.
 
 [Unit]
-Description=d2s: PulseAudio stream policy - Bluetooth routing and the Waydroid volume cap
+Description=d2s: move audio to a Bluetooth headset when one connects
 After=pulseaudio.service
 Wants=pulseaudio.service
 
