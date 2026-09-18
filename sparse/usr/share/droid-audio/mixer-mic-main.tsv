@@ -15,9 +15,10 @@
 # leftover or future default cannot re-enable them.
 #
 #
-# GAIN: IN3R Digital Volume is 168 (+20 dB), not Samsung's 96. The control
-# runs 0..191 in 0.5 dB steps from -64 dB, so Samsung's gain-media-mic value
-# of 96 is -16 dB - their HAL/DSP adds its own gain on top, which we do not
+# GAIN: IN3R Digital Volume is 191 (+31.5 dB, the control's maximum), not
+# Samsung's 96. The control runs 0..191 in 0.5 dB steps from -64 dB, so
+# Samsung's gain-media-mic value of 96 is -16 dB - their HAL/DSP adds its own
+# gain on top, which we do not
 # have. At 96 speech recorded around -45..-50 dBFS and played back as near
 # silence. Measured by loopback (1 kHz on the speaker, played straight to
 # hw:0,1 with the PulseAudio sink suspended, captured through PulseAudio):
@@ -34,8 +35,14 @@ ISRC1INT1 Input 1	LHPF1
 AIF1TX1 Input 1	ISRC1INT1
 AIF1TX2 Input 1	ISRC1INT1
 DMIC1 Switch	1
-IN3R Digital Volume	168
+IN3R Digital Volume	191
 ABOX NSRC0	UAIF0
 ABOX SIFM0	WDMA
 ABOX WDMA1_EN	Off
 ABOX VPCMIN_DAI0_EN	Off
+
+# 168 (+20 dB) was still too quiet: measured on speech it peaked at 6.6% of full
+# scale and recordings came back audible but faint. Swept against live speech
+# on 2026-09-18: 176 -> 8.5%, 184 -> 18.8%, 191 -> 25.3%. 191 is ~4x louder than
+# 168 and speech still only reaches a quarter of full scale, so there is no
+# clipping risk in the headroom that is left.
