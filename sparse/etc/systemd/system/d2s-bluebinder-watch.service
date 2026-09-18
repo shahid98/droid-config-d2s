@@ -1,0 +1,21 @@
+# Bluetooth stops working mid-session on this device: bluebinder's instance
+# wedges - typically after a headset session - and every power-on then fails
+# with "bluetoothd: Failed to set mode: Failed (0x03)" while rfkill is clear.
+# A fresh bluebinder instance always fixes it, so this watches for that line and
+# restarts one. See usr/bin/d2s-bluebinder-watch.sh, and
+# d2s-bluebinder-restart.service for the boot-time half of the same fault.
+
+[Unit]
+Description=d2s: restart bluebinder when the Bluetooth adapter refuses to power on
+After=bluetooth.service d2s-bluebinder-restart.service
+Wants=bluetooth.service
+ConditionPathExists=/dev/vhci
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/d2s-bluebinder-watch.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
