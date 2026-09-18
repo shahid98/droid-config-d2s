@@ -1,0 +1,20 @@
+# Bluetooth audio routing for d2s. Sailfish's own routing cannot do this here:
+# module-policy-enforcement resolves outputs through droid.* sink properties
+# and module-droid-card is not loaded on this device, so a bluez sink is
+# invisible to it and media stays on the speaker. See usr/bin/d2s-bt-audio.sh.
+#
+# A user unit because it drives PulseAudio, which runs in the user session.
+
+[Unit]
+Description=d2s: move audio to a Bluetooth headset when one connects
+After=pulseaudio.service
+Wants=pulseaudio.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/d2s-bt-audio.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=post-user-session.target
