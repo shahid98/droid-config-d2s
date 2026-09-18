@@ -103,8 +103,25 @@ Requires: usb-moded
 # hammerhead, grouper, and maguro use this in scripts, so include for all
 Requires: rfkill
 
-# enable device lock and allow to select untrusted software
-Requires: jolla-devicelock-daemon-encsfa
+# enable device lock and allow to select untrusted software.
+#
+# sailfish-devicelock-fpd instead of jolla-devicelock-daemon-encsfa: the two
+# conflict, and the fpd variant is the same encsfa daemon *with* fingerprint
+# support (the unit it installs is sailfish-devicelock-encsfa-fpd.service), so
+# nothing is given up by using it. Without it the fingerprint sensor works at
+# the daemon level but Settings never offers to enrol one.
+Requires: sailfish-devicelock-fpd
+
+# Fingerprint: this phone's ultrasonic sensor (Qualcomm qbt2000) works under
+# Sailfish through sailfish-fpd-community, which speaks the same D-Bus API as
+# Jolla's closed sailfish-fpd and talks to the hardware through the AOSP
+# android.hardware.biometrics.fingerprint@2.1 HIDL interface - which Samsung's
+# own service registers alongside its vendor 3.0 one. droid-biometry-fp carries
+# both the libbiometry_fp_api glue and that HIDL client library, because
+# LineageOS does not ship the latter. Verified on device: enrolment reached
+# progress 1.0 and authentication matched the finger.
+Requires: sailfish-fpd-community
+Requires: droid-biometry-fp
 
 # Enable home encryption
 #Requires: sailfish-device-encryption
