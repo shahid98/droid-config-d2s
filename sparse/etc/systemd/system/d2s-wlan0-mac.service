@@ -18,7 +18,10 @@ ConditionPathExists=/sys/class/net
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-TimeoutStartSec=60
+# A backstop only - the script keeps itself to its own 8 s deadline. It matters
+# because connman is ordered after this unit, so whatever this unit spends is
+# spent in the boot path: at 60 s it was holding lipstick back to 79 s.
+TimeoutStartSec=15
 ExecStart=/usr/bin/d2s-wlan0-mac.sh
 
 [Install]

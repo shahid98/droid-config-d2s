@@ -25,6 +25,30 @@ $BB mkdir -p /var/lib/hybris-fix
 : > "$LOG"
 log() { echo "$($BB cut -d. -f1 /proc/uptime)s: $*" >> "$LOG"; }
 
+# Give up at once while wifi is rfkill soft-blocked, which is how Sailfish
+# leaves it until the user turns wifi on - so it is the state on every boot of
+# a freshly flashed device.
+#
+# Nothing here can work in that state: bcmdhd never loads firmware, so wlan0
+# keeps its random pre-firmware address, and every `ip link set wlan0 ...`
+# returns "Operation not possible due to RF-kill" or "No such device" as the
+# driver tears the interface down and back up. Waiting anyway cost ~45 s of the
+# 77 s boot, in the critical path, because this unit is ordered
+# Before=connman.service - the same trap bluebinder's 60 s timeout was.
+#
+# Bailing out is safe precisely because connman cannot create a wifi device
+# ident while there is no wifi either. The cost is that a device whose wifi is
+# switched on later keeps the random-MAC ident for that session; fixing that
+# properly means reacting to the unblock rather than to boot.
+for rf in /sys/class/rfkill/rfkill*; do
+    [ -r "$rf/type" ] || continue
+    [ "$($BB cat "$rf/type" 2>/dev/null)" = "wlan" ] || continue
+    if [ "$($BB cat "$rf/soft" 2>/dev/null)" = "1" ]; then
+        log "wifi is rfkill soft-blocked ($rf) - nothing to do, exiting"
+        exit 0
+    fi
+done
+
 # droid-wifi-firmware.sh bind-mounts /mnt/vendor/efs at /efs; read either.
 # Keep these waits short: this unit is ordered Before=connman.service, so
 # every second spent here delays networking at boot. EFS is mounted by
@@ -86,14 +110,33 @@ log "using $IP_BIN"
 # single attempt can hit "RTNETLINK answers: No such device" (rc=2) even though
 # /sys/class/net/wlan0 existed a moment earlier. Retry briefly, and judge the
 # result by reading the address back rather than by the exit code.
+#
+# Bound the whole thing by wall clock, not by a number of attempts. Each
+# `ip link set dev wlan0 down|up` can block for 10-22 s while bcmdhd is still
+# creating the interface, so "five attempts" was really "up to two minutes":
+# on a clean flash it ran past the unit's own 60 s timeout and was killed. That
+# 60 s was pure boot latency, because connman is ordered after this unit -
+# lipstick appeared at 79 s instead of ~20 s, for a MAC that never got set.
+DEADLINE=$(( $($BB cut -d. -f1 /proc/uptime) + 8 ))
 n=0
-while [ $n -lt 5 ]; do
+while [ "$($BB cut -d. -f1 /proc/uptime)" -lt "$DEADLINE" ]; do
     CUR=$($BB cat /sys/class/net/wlan0/address 2>/dev/null | $BB tr 'A-F' 'a-f')
     [ "$CUR" = "$MAC" ] && break
+    # rtnetlink loses the interface completely while the driver re-creates it
+    # ("RTNETLINK answers: No such device"), even though /sys/class/net/wlan0
+    # still exists - that sysfs entry is why the wait above already returned.
+    # Touching it in that window is exactly what blocks, so skip the attempt.
+    if ! "$IP_BIN" link show dev wlan0 >/dev/null 2>&1; then
+        $BB sleep 1
+        n=$((n + 1))
+        continue
+    fi
     "$IP_BIN" link set dev wlan0 down 2>>"$LOG"
     "$IP_BIN" link set dev wlan0 address "$MAC" 2>>"$LOG"
     RC=$?
-    "$IP_BIN" link set dev wlan0 up 2>>"$LOG"
+    # Deliberately NOT bringing it back up. That is what provokes the firmware
+    # load and the long block, and it is not ours to do: wlan0 was down when we
+    # found it, and connman brings it up when wifi is actually switched on.
     log "attempt $n: rc=$RC, now $($BB cat /sys/class/net/wlan0/address 2>/dev/null)"
     $BB sleep 1
     n=$((n + 1))
