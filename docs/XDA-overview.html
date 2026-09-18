@@ -346,9 +346,11 @@
     <div class="rows">
       <div class="row">
         <h3>Android apps</h3>
-        <span class="pill no">Not available</span>
-        <p>Jolla’s Alien Dalvik is licensed only to officially supported devices. Waydroid is not included or
-          tested — the kernel has what it needs, but nobody has run it here yet.</p>
+        <span class="pill part">Waydroid only</span>
+        <p>Jolla’s Alien Dalvik is licensed only to officially supported devices. <strong>Waydroid works</strong>
+          — Android 13 in a container, with touch, the browser and app installs — but it is not in the image:
+          run <code>devel-su /usr/bin/d2s-waydroid-setup.sh</code>, which pulls about 1 GB of images. Inside
+          Waydroid, the camera and shared storage (Gallery, Documents) do not work.</p>
       </div>
       <div class="row">
         <h3>Audio routing</h3>

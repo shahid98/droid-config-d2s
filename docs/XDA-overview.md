@@ -69,9 +69,12 @@ flash.
 
 ## What does not work
 
-- **No Android app support.** Jolla's Alien Dalvik is licensed only to
-  officially supported devices. Waydroid is not included or tested; the kernel
-  has what it needs, but nobody has run it yet.
+- **No built-in Android app support.** Jolla's Alien Dalvik is licensed only to
+  officially supported devices. **Waydroid does work** — Android 13 runs in a
+  container, with touch, the browser and app installs — but it is not in the
+  image: install it with `devel-su /usr/bin/d2s-waydroid-setup.sh`, which pulls
+  ~1 GB of images. Inside Waydroid the camera and shared storage (Gallery,
+  Documents) do not work.
 - **Audio routing is fixed to the speakers.** Headphones, the earpiece for
   media, and Bluetooth audio are not switched automatically. Bluetooth
   connects, but it will not play your music.
