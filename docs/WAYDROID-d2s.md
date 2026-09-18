@@ -166,6 +166,13 @@ runner) owns it: `waydroid session stop` first.
 
 ## Notes
 
+- The script also masks `lxc@multi-user.service` (a template unit from the lxc
+  package for a container this device does not have) and comments out `veth`
+  and `xt_CHECKSUM` in `/etc/modules-load.d/waydroid.conf` — both are built into
+  this kernel rather than modules, so `modprobe` fails and takes
+  `systemd-modules-load.service` with it. Neither breaks anything; they just sit
+  in `systemctl --failed` forever.
+
 - `waydroid-container.service` is enabled into `graphical.target` by the
   package, so it starts on every boot. It is only a D-Bus service — the
   container itself starts when a session does — but disable it with

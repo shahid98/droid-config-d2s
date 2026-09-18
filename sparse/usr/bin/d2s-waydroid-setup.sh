@@ -50,6 +50,18 @@ echo "== dnsmasq =="
 # the system-wide one.
 systemctl disable --now dnsmasq 2>/dev/null || true
 
+echo "== units that would fail on every boot =="
+# The lxc package ships a template unit for a container this device does not
+# have, so it sits in `systemctl --failed` forever.
+systemctl mask lxc@multi-user.service >/dev/null 2>&1 || true
+# Waydroid's modules-load.d asks for veth and xt_CHECKSUM. Both are built into
+# this port's kernel, not modules, so modprobe fails and takes
+# systemd-modules-load.service down with it.
+M=/etc/modules-load.d/waydroid.conf
+if [ -f "$M" ]; then
+    sed -i 's/^veth$/# veth - built in on d2s/; s/^xt_CHECKSUM$/# xt_CHECKSUM - built in on d2s/' "$M"
+fi
+
 echo "== launcher icons =="
 # Two icons both called "Waydroid" get installed. waydroid.desktop runs
 # `waydroid show-full-ui`, which connects straight to lipstick: Android renders,
