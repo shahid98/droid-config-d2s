@@ -28,6 +28,7 @@ IP=/usr/sbin/ip
 IPT=/sbin/iptables
 IPT6=/sbin/ip6tables
 CM=/usr/bin/connmanctl
+DBUS="/usr/bin/dbus-send --system --print-reply --dest=org.ofono"
 PRIO=25000
 
 # Both address families: netd installs the same rule scheme for IPv6. With only
@@ -168,6 +169,50 @@ write_resolv() {
     fi
 }
 
+# Give ofono's MMS context a route out.
+#
+# Picture messages sat at "Downloading..." for ever. The context itself was
+# fine - ofono had activated it and the carrier had answered:
+#
+#     Interface rmnet1   Address 10.109.247.67/32
+#     Gateway   10.109.247.1
+#     Proxy     web.wireless.bell.ca:80
+#
+# but there was no route for rmnet1 anywhere in the table, because connman
+# never sees this context: ofono raises it for mms-engine alone. So
+# mms-engine's packets to the carrier's MMS proxy followed the default route
+# out of wifi, where that proxy does not exist, and the transfer hung until it
+# timed out.
+#
+# The carrier hands out a /32, so the gateway is not on-link and needs its own
+# link route first. Everything then goes in a separate table selected by the
+# context's own source address - mms-engine binds to it - which keeps carrier
+# MMS traffic off the default route without disturbing wifi or mobile data.
+MMS_TABLE=1076
+mms_route() {
+    for path in $($DBUS /ril_0 org.ofono.ConnectionManager.GetContexts 2>/dev/null \
+                  | $B grep -oE '/ril_0/context[0-9]+'); do
+        props=$($DBUS "$path" org.ofono.ConnectionContext.GetProperties 2>/dev/null)
+        echo "$props" | $B grep -q '"mms"' || continue
+        echo "$props" | $B grep -A1 '"Active"' | $B grep -q 'boolean true' || continue
+        ifc=$(echo "$props" | $B grep -A1 '"Interface"' | $B tail -1 | $B sed 's/.*string "//; s/".*//')
+        addr=$(echo "$props" | $B grep -A1 '"Address"' | $B tail -1 | $B sed 's/.*string "//; s/".*//')
+        gw=$(echo "$props" | $B grep -A1 '"Gateway"' | $B tail -1 | $B sed 's/.*string "//; s/".*//')
+        [ -n "$ifc" ] && [ -n "$addr" ] && [ -n "$gw" ] || continue
+
+        # Already set up? Leave it alone - this runs every 10 s.
+        $IP route show table $MMS_TABLE 2>/dev/null | $B grep -q "$ifc" && continue
+
+        $IP route replace "$gw" dev "$ifc" scope link table $MMS_TABLE 2>/dev/null
+        $IP route replace default via "$gw" dev "$ifc" table $MMS_TABLE 2>/dev/null
+        $IP rule show 2>/dev/null | $B grep -q "from $addr lookup $MMS_TABLE" || \
+            $IP rule add from "$addr" lookup $MMS_TABLE priority 24000 2>/dev/null
+        # mms-engine resolves the proxy by name, and the carrier's own
+        # resolvers are the only ones that answer for it.
+        $IP route replace "$gw" dev "$ifc" scope link 2>/dev/null
+    done
+}
+
 # Point /etc/resolv.conf at the stub straight away, before the wait below: the
 # user session prestarts sandboxed apps (the browser booster) early in boot,
 # and each copies the file as it is at that moment.
@@ -185,6 +230,7 @@ while [ $i -lt 90 ]; do
 done
 
 apply
+mms_route
 $IPT -F 2>/dev/null      # drop netd's filter rules once, at startup
 $IPT6 -F 2>/dev/null
 connect_wifi
@@ -196,6 +242,7 @@ sync_resolv
 while : ; do
     $B sleep 10
     apply
+    mms_route
     connect_wifi
     sync_resolv
 done
