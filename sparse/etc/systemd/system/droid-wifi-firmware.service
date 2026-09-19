@@ -1,13 +1,52 @@
 [Unit]
 Description=Point bcmdhd at the vendor WiFi firmware and NVRAM
 After=droid-hal-init.service
+# Ordered before connman so that connman first sees wlan0 with its REAL MAC.
+#
+# bcmdhd reads the address from /efs/wifi/.mac.info in
+# dhd_set_macaddr_from_file(); when that file is unreadable it invents a
+# random 00:90:4c:xx:xx:xx address and tries to persist it. On this port the
+# file only becomes reachable once this script bind-mounts EFS, so every boot
+# produced a different random address until the firmware actually loaded.
+#
+# connman names its wifi device - and therefore every service directory under
+# /home/defaultuser/.local/share/system/privileged/connman/ - after whatever
+# address wlan0 had when the device was created. It used to start at 8.7 s,
+# roughly 3 s before this unit ran and ~11 s before the firmware load finished,
+# so it always caught the random address: this boot wifi_00904c7ef225_*, the
+# one before wifi_00904cb2dc3d_*. Every boot therefore left behind a fresh set
+# of directories for the same access points, which is what fills Settings with
+# networks nobody connected to.
+#
+# Setting the address early instead is not possible: with the chip powered off
+# "ip link set dev wlan0 address" returns "RTNETLINK answers: No such device",
+# because the driver tears the interface down and re-creates it around the
+# firmware load. The address only exists once the chip is up, so connman has
+# to wait for it. Verified by hand: with wlan0 already carrying
+# 8c:b8:4a:04:fd:03, a connman restart re-registered every service as
+# wifi_8cb84a04fd03_*.
+#
+# This costs roughly 9 s before connman starts. It is not in the way of the
+# user session - lipstick does not wait on connman - so what is actually
+# delayed is networking, not the homescreen.
+Before=connman.service
 
 [Service]
-# Type=simple and no Before=: this must never be something the boot
-# transaction waits on. An earlier oneshot version ordered Before=connman and
-# called "systemctl restart connman" from inside itself, which deadlocked the
-# job queue and left the device on a blank screen with no user session.
-Type=simple
+# Type=oneshot, not simple: with Type=simple systemd calls the unit started as
+# soon as the process is forked, so Before= would wait for nothing at all and
+# connman would still win the race.
+#
+# The earlier oneshot version that deadlocked the job queue (blank screen, no
+# user session) did so because it ran "systemctl restart connman" from inside
+# itself while ordered Before=connman. This script issues no systemctl command
+# of any kind, so that cycle cannot form.
+Type=oneshot
+RemainAfterExit=yes
+# Hard bound on the boot path. The script waits up to 120 s for
+# /vendor/etc/wifi, and connman is now behind it - without this, one missing
+# mount would hold networking for two minutes. Ordering only (no Requires), so
+# connman still starts if this fails.
+TimeoutStartSec=45
 ExecStart=/usr/bin/droid-wifi-firmware.sh
 
 [Install]

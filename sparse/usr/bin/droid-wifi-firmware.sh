@@ -116,10 +116,11 @@ done
 
 $BBS ifconfig wlan0 down 2>/dev/null; $BB sleep 1
 $BBS ifconfig wlan0 up 2>&1 | while read l; do log "up: $l"; done
-$BB sleep 6
 log "wlan0: $($BBS ifconfig wlan0 2>&1 | $BB head -2)"
-log "--- result ---"
-/usr/bin/journalctl -b -k --no-pager 2>/dev/null \
-  | $BB grep -iE 'request_firmware err|Request Firmware API|download firmware|Firmware up|dongle image' \
-  | $BB tail -14 >> "$LOG" 2>&1
+
+# No trailing sleep and no journalctl sweep here any more. connman is ordered
+# after this unit now, so every second spent past the firmware load is a second
+# of networking delayed at boot - the 6 s settle plus the journal scan bought
+# nothing but a prettier log. The same lines are still in `journalctl -b -k`
+# for anyone debugging, and "up:" above records what ifconfig said.
 exit 0
