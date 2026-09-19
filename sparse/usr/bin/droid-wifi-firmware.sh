@@ -31,9 +31,35 @@ $BB mkdir -p /efs
 log "mac.info: $($BB cat /efs/wifi/.mac.info 2>&1)"
 
 $BB mkdir -p "$FW"
+# Verify the copy, do not merely check that something is there.
+#
+# "[ -f ] || cp" left a corrupt copy in place for good, and a corrupt copy is
+# exactly what this device produces: /data is f2fs, cp does not fsync, and a
+# forced reset (vol-down+power, which this port needs while the shutdown hang
+# is unfixed) commits the inode size without the data blocks. The result is a
+# file of precisely the right length that is mostly NULs - 1058687 of 1261732
+# bytes of bcmdhd_sta.bin_b1 were zero when this bit us, and every existence
+# test still passed.
+#
+# The failure is silent and looks nothing like bad firmware. The dongle takes
+# the download, the PCIe link trains, the NVRAM even reads back and compares
+# OK - and then the dongle CPU never starts, because there is no valid code
+# for it to run:
+#   dhdpcie_readshared: address (0xf2c30d3c) of pciedev_shared invalid
+#   dhd_bus_init :Shared area read failed
+#   failed to power up wifi chip, retry again (0 left)
+# which reads as a dead chip, not as a bad file.
+#
+# cmp over ~1.3 MB costs a few tens of ms once per boot; wifi silently not
+# existing costs rather more. sync afterwards so our own copy is durable.
+COPIED=0
 for f in bcmdhd_sta.bin_b1 bcmdhd_mfg.bin_b1 nvram.txt_CS01_semco_b1 bcmdhd_clm.blob; do
-    [ -f "$FW/$f" ] || $BB cp "/vendor/etc/wifi/$f" "$FW/$f" 2>/dev/null
+    [ -f "/vendor/etc/wifi/$f" ] || continue
+    if $BB cmp -s "/vendor/etc/wifi/$f" "$FW/$f" 2>/dev/null; then continue; fi
+    log "refreshing $f (missing or does not match vendor)"
+    $BB cp "/vendor/etc/wifi/$f" "$FW/$f" 2>/dev/null && COPIED=1
 done
+[ "$COPIED" = 1 ] && $BB sync
 log "in $FW: $($BB ls $FW 2>&1 | $BB tr '\n' ' ')"
 
 # firmware_class searches its "path" parameter first; droid-hal leaves it at
