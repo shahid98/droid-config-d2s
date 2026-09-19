@@ -1,0 +1,15 @@
+[Unit]
+Description=d2s: discard a corrupt PackageKit transaction database
+# packagekitd is D-Bus activated, so it can start at any moment once the
+# system bus is up. Run before it and before anything that would activate it.
+Before=packagekit.service
+# The damage happens across a reset, so checking once per boot is enough.
+ConditionPathExists=/var/lib/PackageKit/transactions.db
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/d2s-packagekit-db-check.sh
+
+[Install]
+WantedBy=multi-user.target

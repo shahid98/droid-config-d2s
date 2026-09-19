@@ -33,6 +33,23 @@ Requires: patterns-sailfish-consumer-generic
 # For Mozilla location services (online)
 Requires: geoclue-provider-mlsdb
 
+# Sailfish Secrets. Not pulled in by any pattern this port uses, so the image
+# shipped without it entirely - `rpm -qa | grep sailfishsecrets` was empty.
+#
+# That blocks installing Storeman, which is the first thing most people do on
+# a community port. Its rpm fails dependency resolution outright:
+#   libsailfishsecrets.so.0()(64bit) is needed by harbour-storeman
+#   sailfishsecretsdaemon-secretsplugins-default is needed by harbour-storeman
+# and the failure surfaces in the UI as a bare "installation failed", with the
+# real reason only visible to `rpm -i --test`.
+#
+# These are stock platform components present on official devices, not
+# Storeman-specific extras; the daemon plus its default secrets plugin is the
+# minimum that satisfies the above.
+Requires: libsailfishsecrets
+Requires: sailfishsecretsdaemon
+Requires: sailfishsecretsdaemon-secretsplugins-default
+
 # Devices with 2G or more memory should also include this booster
 # to improve camera startup times and the like
 #Requires: mapplauncherd-booster-silica-qt5-media
