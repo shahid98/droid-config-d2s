@@ -47,9 +47,17 @@ flash.
 - 4K recording at a sensible bitrate (about 19 Mbit/s).
 
 **Media**
-- Hardware video decoding: 1080p and 1440p play smoothly in the browser, and
-  VP9 works in third-party YouTube clients.
+- Hardware video decoding for apps that use the system media stack — gst-droid
+  reaches the Exynos decoders (H.264, HEVC, VP8, VP9), so 1080p and 1440p play
+  in third-party YouTube clients.
 - Audio playback through the speakers, microphone recording, vibration.
+
+  **Not in the browser.** Sailfish's Gecko has no hardware decoding path at
+  all — it contains no droid decoder module, only its own software decoders
+  (libvpx, dav1d). It then measures that software decoder, decides it is fast
+  enough, and accepts 1080p VP9 from YouTube, which the CPU cannot keep up
+  with. The SoC's own `OMX.Exynos.vp9.dec` is never used. AV1 is worse and
+  cannot be fixed: Exynos 9825 has no AV1 hardware at all.
 
 **Location**
 - GPS works, including assistance data so a fix does not take minutes every
@@ -164,8 +172,10 @@ developer options, then unlock in download mode).
   sent to the modem when the telephony service starts.
 - **GPS:** switch Location on in *Settings → Location*. It is off by default,
   and nothing will get a fix until it is on.
-- **USB:** *Settings → USB* selects between MTP, developer mode and charging
-  only.
+- **USB:** the phone asks what to do each time the cable goes in — MTP,
+  developer mode (USB networking) or charging only. Earlier builds were pinned
+  to developer mode by a package meant for R&D handsets, so the choice was
+  shown but never applied and MTP never appeared; that is fixed here.
 - **Storage:** the crash reporter is included in this build. If you never
   intend to send logs anywhere, clear its reports occasionally.
 
