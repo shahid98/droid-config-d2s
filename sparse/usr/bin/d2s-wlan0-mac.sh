@@ -134,13 +134,28 @@ while [ "$($BB cut -d. -f1 /proc/uptime)" -lt "$DEADLINE" ]; do
     "$IP_BIN" link set dev wlan0 down 2>>"$LOG"
     "$IP_BIN" link set dev wlan0 address "$MAC" 2>>"$LOG"
     RC=$?
-    # Deliberately NOT bringing it back up. That is what provokes the firmware
-    # load and the long block, and it is not ours to do: wlan0 was down when we
-    # found it, and connman brings it up when wifi is actually switched on.
+    # Not brought up here - that happens once, after the loop. Doing it per
+    # attempt meant five firmware loads and the unit's 60 s timeout.
     log "attempt $n: rc=$RC, now $($BB cat /sys/class/net/wlan0/address 2>/dev/null)"
     $BB sleep 1
     n=$((n + 1))
 done
+# Bring it up, exactly once, and even when the address could not be set.
+#
+# This is not optional and it is not tidying: on bcmdhd the chip is powered and
+# the firmware downloaded from ndo_open, so `ip link set up` IS what turns wifi
+# on. An earlier version of this script skipped it to save the 10-22 s that
+# call blocks for - and cost the port its wifi entirely. connman reported
+# "No carrier" and the kernel showed, on every attempt:
+#
+#     wl_android_wifi_off g_wifi_on=0 force_off=1
+#     dhd_bus_devreset: == Power OFF ==
+#     dhd_open: EXIT
+#
+# The block is the firmware load. It is work, not waste.
+"$IP_BIN" link set dev wlan0 up 2>>"$LOG"
+log "wlan0 up: rc=$?, operstate=$($BB cat /sys/class/net/wlan0/operstate 2>/dev/null)"
+
 FINAL=$($BB cat /sys/class/net/wlan0/address 2>/dev/null | $BB tr 'A-F' 'a-f')
 if [ "$FINAL" = "$MAC" ]; then
     log "ok: wlan0 = $FINAL after $n attempt(s)"

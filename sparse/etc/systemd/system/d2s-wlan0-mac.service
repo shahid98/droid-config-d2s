@@ -12,16 +12,23 @@
 [Unit]
 Description=d2s: stable wifi ident - set wlan0 MAC from EFS before connman
 After=droid-hal-init.service droid-wifi-firmware.service
-Before=connman.service
+# NOT Before=connman.service any more. Bringing wlan0 up is what powers the
+# bcmdhd chip and loads its firmware, and that blocks for 10-22 s - time this
+# unit has to spend, because without it there is no wifi at all. Holding
+# connman for it put that straight into the boot path. It also bought nothing:
+# the MAC set this unit exists for fails on every attempt here anyway
+# ("RTNETLINK answers: No such device" while the driver re-creates the
+# interface), so connman's ident churn is unfixed either way. Wifi working
+# matters more than an ident, so let it run alongside connman instead.
 ConditionPathExists=/sys/class/net
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# A backstop only - the script keeps itself to its own 8 s deadline. It matters
-# because connman is ordered after this unit, so whatever this unit spends is
-# spent in the boot path: at 60 s it was holding lipstick back to 79 s.
-TimeoutStartSec=15
+# Long enough for the firmware load at the end (10-22 s) on top of the
+# script's own 8 s MAC deadline. 15 s killed it mid-load and left wifi dead.
+# No longer in the boot path, so this costs nothing but its own time.
+TimeoutStartSec=60
 ExecStart=/usr/bin/d2s-wlan0-mac.sh
 
 [Install]
