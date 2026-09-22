@@ -1,8 +1,57 @@
 # Sailfish OS 5.1.0.11 on Samsung Galaxy Note 10+ (d2s / SM-N975F / Exynos 9825)
 
-Status as of 2026-09-10. Base: hybris-18.1 (LineageOS 18.1 / Android 11).
+Status as of 2026-09-21. Base: hybris-18.1 (LineageOS 18.1 / Android 11).
 
 ---
+
+**Final rebuild and live verification 2026-09-21** — `./build.sh --stage
+configs,mic -j 8` completed successfully. The resulting recovery ZIP is
+`SailfishOScommunity-release-5.1.0.11-d2s/sailfishos-d2s-release-5.1.0.11.zip`,
+and its `hybris-boot.img` is the tested kernel image (sha256
+`9c2653e8171d65801cb6ec331050b1f92531c8217335b26137e3526e650ed2b6`).
+The live phone runs that kernel and the matching newly rebuilt droid-config.
+After physical USB removal, MCE reported charger `off`, USB and AC both read
+offline, `usb_notify` and `dwc3-otg` both had `active_since=0`, and suspend
+success reached 23. With the display blank and Waydroid stopped, battery current
+fell to -32 mA instantaneous / -104 mA average and battery temperature to
+28.5 C. This is the first image containing the final F2FS progress guard,
+location-consent migration, Android 11 GApps default, and safe Waydroid image
+replacement together.
+
+The old writeback loop plus the forced reboot had left 459 immutable RPM files
+filled entirely with zeroes, including Storeman and SysMetrics icons, Weather,
+Calendar, and parts of Waydroid Settings. Repository caches were cleaned and 43
+affected packages were force-reinstalled from their repositories. A second
+full RPM verification found zero remaining zero-filled checksum failures; the
+remaining checksum differences are intentional port/configuration edits.
+
+**Follow-up storage/audio/battery verification 2026-09-21** — another pin
+reset exposed 184 allocated, correctly-sized package files whose contents had
+become all zero. A clean Calculator RPM extracted a valid ELF while its
+installed counterpart was zero; controlled reinstall + `sync` + page-cache
+drop read back correctly, proving repository payloads and live UFS writes are
+good and the loss occurs across the unclean-reset durability window. Fifteen
+affected packages (including Ghosteel and SysMetrics) were reinstalled and
+verified. `d2s-rpm-sync.path` now runs `sync` immediately after RPM database
+changes, without a periodic timer or suspend wakeup. Waydroid's real
+device-specific speaker volume was still 15 despite the old generic setting;
+its AudioService range is now capped at the tested clean maximum of 11. The
+Samsung battery driver also requested milliamps for its public `current_now`
+and `current_avg` properties, violating the power-supply microamp ABI and
+making SysMetrics show 1 mA / 0.0 W; the kernel now requests microamps from the
+MAX77705 gauge for those two exported properties.
+
+**Full rebuild and install 2026-09-20** — built with
+`/home/bin4ry/.cache/claude-hadk/build-full.sh`, with every backend capped at
+`-j8`, then installed through Lineage recovery with `adb sideload`. The zip was
+accepted completely (`Total xfer: 1.00x`) and the fresh system booted kernel
+`4.14.253+ #1 SMP PREEMPT Sun Sep 20 02:43:37 EDT 2026`. The installed boot
+partition matches the newly built `hybris-boot.img` byte-for-byte (sha256
+`fade38e7d89fbb3c8988c22859186436b408759801ae91b49737eef7a0b0da31`).
+Installed packages are `droid-config-d2s-1-202609200646`,
+`droid-hal-d2s-0.0.6-202609200644`, and the patched
+`usb-moded-0.86.0+mer69+HEAD.20260920013821.d239235-2`. The sideloaded zip
+sha256 is `e6b5748f72942f8856c600872c74de94004c07986697163b821c1bc11186176c`.
 
 **Reboot check 2026-09-17** (after the DNS, SELinux, signal-strength, camera-lens and GPS changes): clean `systemctl reboot`, UI up at ~127 s, no failed units, `/etc/resolv.conf` -> resolved stub with the connected network's servers, browser sandbox sees `127.0.0.53`, ofono on IRadio 1.4 (LTE with a real strength a minute after boot; the first reading was HSPA at 1% while the modem was still registering), camera service lists main / ultra-wide / front / telephoto, Location stays on.
 
@@ -74,7 +123,7 @@ all three patch markers are present.
 | Boot to UI | Working | Lipstick, homescreen, app grid. **Boot time (2026-09-18): lipstick starts at 22 s**, down from 72 s. The missing minute was `bluebinder.service`: its first instance after a cold boot hangs in the vendor HAL after "Turning bluetooth on" and is killed by systemd's 60 s `TimeoutStartSec`, and it sits in the critical path (`Before=bluetooth.service`, and the user session waits for `network.target` behind it). `sparse/etc/systemd/system/bluebinder.service.d/50-d2s-start-timeout.conf` cuts that timeout to 10 s - a healthy instance takes ~1.7 s, and the doomed one is doomed however long it is given |
 | Display | Working | 1440x3040 at pixel_ratio 2.0. Launcher icons were stuck at 86 px (7-column grid) because the first image shipped only the z1.0 graphics packages; Silica sizes launcher icons from the installed set. Needs `sailfish-content-graphics-z2.0`, which the pattern pulls via icon_res once pixel_ratio is 2.0 |
 | Touch | Working | |
-| Waydroid (Android apps) | Partly working | **Android 13 runs in a container** (Waydroid 1.4.3, LineageOS 20 system image on the HALIUM_11 vendor shim). Touch, keyboard, browser and app installs work; camera and shared storage (Gallery, Documents) do not. Not in the image - `sparse/usr/bin/d2s-waydroid-setup.sh` installs it from Chum on demand. The kernel needed one addition, `CONFIG_NETFILTER_XT_TARGET_CHECKSUM` (without it `waydroid-net.sh` fails on its DHCP checksum rule and the container never starts); the binder side needed nothing, since `ANDROID_BINDER_DEVICES` already carries the `anbox-*` nodes Waydroid prefers, so the container gets its own binder domain. Touch only works through `waydroid-runner` (a Silica app with its own nested compositor) - upstream's `waydroid show-full-ui` renders but gets no input from lipstick. Full write-up, including what has been ruled out for the camera (the container's legacy passthrough provider has no `camera.*.so` to load; this phone's camera is a HIDL service on the host) and for storage (MediaProvider's FUSE session times out; `/dev/fuse` and the Android FUSE kernel extensions are both present), in docs/WAYDROID-d2s.md |
+| Waydroid (Android apps) | Working on Android 11 | Waydroid 1.4.3 uses the archived LineageOS 18.1 system image with the HALIUM_11 vendor shim; the setup script now defaults to the GApps variant. Touch and keyboard work through `waydroid-runner`'s nested compositor, networking works, and the matching Android 11 image restores camera and shared storage that were broken with Android 13. Not baked into the Sailfish image: `/usr/bin/d2s-waydroid-setup.sh` installs it from Chum and downloads the requested system image. `CONFIG_NETFILTER_XT_TARGET_CHECKSUM` and the `anbox-*` binder nodes are already in the kernel. Never select 4K in the Android camera; see docs/WAYDROID-d2s.md. |
 | Boot splash | Working (see note) | The Sailfish OS logo is drawn by the initrd a few seconds after the Samsung logo, so the screen is no longer blank all the way to lipstick. `HYBRIS_BOOTLOGO := 1` in `hybris/hybris-boot/Android.mk`; artwork generated by `make-d2s-bootsplash.py` from `d2s-bootsplash-logo.png` (the cyan Sailfish splash by taalojarvi, XDA) into `initramfs/bootsplash.ppm.gz`. **Upstream's `zcat /bootsplash.gz > /dev/fb0` cannot work on this kernel**: decon allocates the framebuffer as a dma_buf, vmaps it once to zero it and then sets `screen_base = NULL` (`decon_core.c`, `decon_fb_alloc_memory`), and `decon_fb_write` is a stub returning 0, so fbmem rejects the write with ENODEV before the driver sees it - the splash was silently lost. decon only implements `fb_mmap`, so the init script draws with busybox `fbsplash` (which mmaps, hence a PPM and not a raw dump), after waiting for `/dev/fb0` and unblanking it. A small log lands at `/var/log/bootsplash.diag` because the kernel ring buffer has wrapped by the time the UI is up; it reads `fbsplash rc=0`. **Not yet in a packed image** - flashed to the device's boot partition only |
 | **Audio playback** | **Working** | Speakers. Bypasses the Android HAL entirely and drives ALSA directly — see below. Routing is static (both speakers); headphone/earpiece/BT switching is not wired up yet |
 | **Telephony** | **SIM, registration and SMS working** | Verified 2026-09-12 with a Jio SIM (roaming on TELUS, HSPA): `Present=true`, ICCID/IMSI/MSISDN read, `PinRequired=none`, `Status=roaming`, incoming SMS delivered to Messages. One fix was needed: ofono uses **ofono-binder-plugin**, whose slots come from `/etc/ofono/binder.d/*.conf` (the `ril_subscription*` files in `sparse-1X` are for the old ril plugin and are dead weight here). That file listed `slot2` only, so ofono bound `IRadio/slot2`, the sole modem was `/ril_1`, `/ril_0` never existed and a card in the **first** tray was invisible - `ril.hasisim=0,0` and `SimManager.Present=false` on every slot. Declaring *both* slots made the SIM appear on `/ril_0` but was still wrong: `org.ofono.Manager.GetModems` then returned only `/ril_1`, the empty slot. The Sailfish extension (`org.nemomobile.ofono.ModemManager`) listed both, so Settings showed the carrier correctly while anything using the plain ofono modem list got a modem with no SIM - the Dialler read "No network coverage" over a fully registered network, outgoing SMS failed with `sms send error SYSTEM_ERR`, and `defaultDataModem` stayed empty. The hardware only looks dual-SIM (two rilds, `IRadio` for slot1 *and* slot2) - the tray is a hybrid SIM + microSD - so the config now declares **only `slot1` -> `/ril_0`**. `GetModems` returns `/ril_0`, voice and data default to it, and the phantom "SIM2 | Unknown" entry is gone. Verified with two SIMs: Jio (roaming on TELUS) and Bell (`Status=registered`, LTE). Outgoing calls connect (911 reached a dispatcher); **in-call audio is confirmed working by ear** (user, 2026-09-18) - see Audio routing. Mobile data is untested. **Open issue: ofono SEGVs during SIM init** after `Open logical channel failure: MISSING_RESOURCE` (seen with the Bell SIM). It appears self-inflicted - repeated `systemctl restart ofono` leaks SIM logical channels until the modem runs out - and it settles once ofono is left alone (0 crashes in a 180 s idle window, registered on Bell throughout). Two things made it far worse than it should have been, both now handled by `sparse/etc/systemd/system/ofono.service.d/50-d2s-telephony-robust.conf`: `core_pattern` pipes cores to `rich-core-dumper`, and dumping ofono's 14 threads held the process in `do_coredump` for minutes while systemd still called the unit `active` and every D-Bus call timed out (a crash that looks exactly like a deadlock); and once crashes became fast, systemd's default start-rate limit left the unit `failed` permanently. The drop-in sets `LimitCORE=1` (**not** 0 - for a piped `core_pattern` the kernel ignores RLIMIT_CORE; only 1 is special-cased, measured: 24 s+ at 0 versus under 2 s at 1) plus `StartLimitIntervalSec=0` and `Restart=always` **Signal strength (fixed 2026-09-17):** ofono had no `Strength` at all because it used IRadio 1.2, and the vendor libril (ROM vendor partition) drops any strength report whose size is not exactly 60/80/100 bytes for 1.0/1.2/1.4; this RIL sends the 100-byte 1.4 layout. The vendor manifest publishes `@1.4::IRadio`, so `binder.d/dual-sim.conf` now sets `radioInterface = 1.4`, and the reports arrive. ofono-binder 1.1.25 then maps the LTE RSRP linearly onto -100..-60 dBm (an RSSI range), so -95 dBm showed 12% = 1 of 5 bars; `signalStrengthRange = -115,-85` reproduces newer ofono-binder's RSRP map and gives 46-66% (3-4 bars) at -95..-100 dBm. Status bar bars = floor((strength+19)/20). After the switch: LTE registration, data, SIM and the SMS service centre re-checked; a voice call on 1.4 still needs a manual test. The Dialler strength-gate patch (`d2s-voicecall-gate.sh`) is kept as a safety net |
@@ -86,10 +135,25 @@ all three patch markers are present.
 | **GPS** | **Working (fix verified)** | 2026-09-17: indoor cold start got a fix in ~2 min - 8 of 12 satellites used, 16 m accuracy, through the normal Sailfish path (geoclue-provider-hybris-binder -> `vendor.samsung.hardware.gnss@2.0` -> Broadcom `gpsd`). The reported "GPS not working" was **Location switched off** (`enabled=false` in `/var/lib/location/location.conf`; `/etc/location/location.conf` is only a compatibility copy). Assistance data never reached the chip, for two reasons: (1) `gpsd` fetches its LTO/RTO files itself, but Android processes cannot resolve host names here (`/system/bin/ping gllto.glpals.com` -> unknown host; netd has no default network), and (2) the HAL's download requests went to the provider, which had no XTRA servers configured. `/etc/gps_xtra.ini` now lists Broadcom's public 7-day LTO files, and the provider downloads and injects them. But geoclue-provider-hybris 0.3.0 injects over HIDL with `gbinder_local_request_append_hidl_string()`, which uses strlen() - an LTO file starts `ff ca de 00`, so the HAL got 3 bytes and kept asking again. Patched in `hybris/mw/geoclue-providers-hybris` (branch d2s off tag 0.3.0) to write the hidl_string with its real length; built into the local repo as `geoclue-provider-hybris-binder-0.3.0+d2s.*` and verified: one download request per session instead of one every few seconds, and gpsd now stores the full `lto2.dat` (182639 bytes) plus `ltoStatus.txt` in `/data/vendor/gps`, then reported a fix (7 satellites, 24 m). The rebuilt droid-config packages (2026-09-17) were checked to contain `/etc/gps_xtra.ini`, `d2s-camera.rc`, the SELinux `file_contexts`, the resolved drop-in and `zz-d2s-adaptation.txt` (in `droid-config-d2s-sailfish`). Open: SUPL / Broadcom LBS assistance also needs DNS on the Android side; the satellite timestamp the provider reports is negative (cosmetic) |
 | Device identity | Working | Settings > About shows Samsung / Galaxy Note 10+ |
 | WiFi | Working | Auto-connects, real MAC, DNS + routing OK. The same network used to be listed many times (66 entries for one SSID; the radio only sees 2 BSSIDs). Two causes, both fixed: (1) bcmdhd's second station interface `wlan1` was also scanned - blacklisted in `sparse/etc/connman/main.conf.d/10-d2s-wlan1.conf`; (2) the real cause - connman fixes a device ident from wlan0's MAC at ~35 s, but bcmdhd only swaps the random `00:90:4c:xx` placeholder for the real `8c:b8:4a:...` when firmware loads, so every boot minted a new ident and another saved service under `/home/defaultuser/.local/share/system/privileged/connman/`. `d2s-wlan0-mac.service` now sets the EFS MAC before connman starts. Verified across reboots: one ident (`8cb84a04fd03`), one entry per network |
-| USB | Working | MTP, developer (RNDIS) and charging-only modes |
-| Battery | Working | Charge level and charging state report correctly. **The core pinned from boot by Samsung's HWC event thread is now gone entirely** (2026-09-17): both DECON vsync nodes are bound to a plain file, and the compositor drives updates from a timer instead. Verified after a cold boot: no thread above ~20%, frame pacing dead steady (60 windows of 100 ms during 4K playback, zero outside 5-7, 61 fps), UI smooth and 1080p video smooth. Two plugin changes were needed, both in `hybris/mw/qt5-qpa-hwcomposer-plugin` and both env-gated so upstream behaviour is unchanged when unset: `QPA_HWC_VSYNC_TIMEOUT` makes the hardcoded 50 ms fallback configurable (set to 10 — the timeout starts when the update is *requested*, so the period is timeout + render time: 16 gave 48-53 fps, 10 gives 60-61), and `QPA_HWC_TIMER_VSYNC` stops the backend touching `eventControl(HWC_EVENT_VSYNC, …)` at all. That second one matters: with the timer firing before the next frame is requested, the backend was disabling and re-enabling the vsync interrupt **60 times a second** — churn that never happened while vsync callbacks were arriving, and it was clearly visible as periodic stutter. Both values live in `sparse/var/lib/environment/compositor/droid-hal-device.conf`. History below is kept because it explains why the obvious fix alone does not work. **Previously partly fixed twice**: (1) `droid-hal-prepare.sh` binds a plain file over `19050000.decon_t/vsync`, the dead second controller. (2) That left `19030000.decon_f/vsync` spinning, because it is the live node that latches `POLLPRI\|POLLERR` and this HWC never reads to clear it — re-measured 2026-09-16 with ftrace: **21207 syscalls in one second, every one `ppoll` (NR 73), zero reads**, identical to the original diagnosis. `decon_f` cannot be bound as well: that stops the spin but costs the compositor its vsync (~17–18 fps, the Qt plugin's hardcoded 50 ms fallback — only `QPA_HWC_IDLE_TIME` is tunable, the timeout is not), and a bind only affects opens made after it so it cannot be applied to a running lipstick. An interim `d2s-hwc-affinity.service` made the spin cheap by pinning that thread to the little cluster, measured at 8% battery on an 875 mA budget: **50–323 mA on the big cluster → 796–842 mA on the little cluster**. That service has since been **removed** — with the spin gone it would only mispin a legitimately busy `QSGRenderThread`. Note the 875 mA / 5 V ceiling is just the PC USB port — the test device charges over `rndis0`; a wall charger should negotiate much more |
+| USB | Working; mode changes and physical reconnect fixed | MTP, developer (RNDIS), charging-only and Always Ask work without a reboot. usb-moded now accepts a newer request while `busy`, keeps the latest request through slow FunctionFS transitions, and re-polls Samsung's selected `usb` power supply when the only uevent arrives through `battery`. Physical unplug/reconnect was verified on release 5: `developer_mode -> undefined -> ask -> developer_mode`, with both disconnect/connect D-Bus events and the chooser shown |
+| Battery | **F2FS full-core loop fixed and flashed** | Charge state reports correctly and physical unplug/replug confirms the USB wake locks release. A second major heat source found 2026-09-20 was init-debug's normal-boot BusyBox `telnetd`: after RNDIS was reconfigured it lost its listener but spun continuously, accumulating 480 CPU-seconds in a ten-minute boot. Killing it removed one pinned core. Normal boots no longer start that unauthenticated daemon; intentionally halted debug boots still do, and a rootfs one-shot now matches its real `busybox-static telnetd` command line instead of the ineffective `killall telnetd`. The final `wb_workfn` fix was flashed 2026-09-21: after boot the phone was 96.9% CPU-idle, had 0 kB stuck writeback, and gained about 697 mA net from an 875 mA PC USB input. **The core formerly pinned by Samsung's HWC event thread is also gone entirely** (2026-09-17): both DECON vsync nodes are bound to a plain file, and the compositor drives updates from a timer instead. See the detailed measurements below |
 | Vibration | Working | Bypasses the Samsung-only vibrator HAL: ngfd writes `/sys/class/timed_output/vibrator/enable` directly. Needed the CS40L25A firmware embedded in the kernel (it probes before any filesystem is mounted) and `droid-vibrator-perms.service` to make the node writable by the user |
 | Microphone | Working | Plain ALSA capture on ABOX WDMA1 (`hw:0,13`) as PulseAudio `source.primary` (`droid.input.builtin=true`). Controls in `mixer-mic-main.tsv`: Samsung `dev-main-mic` + `gain-media-mic` + `ABOX NSRC0=UAIF0`, with `WDMA1_EN`/`VPCMIN_DAI0_EN` pinned Off (Samsung's `route-ap-record` sets them On and hands WDMA1 to the DSP's MMAP voice pipeline, which never delivers to the AP). Verified by speaker-to-mic loopback through PulseAudio. Gain: `IN3R Digital Volume` 168 (+20 dB); Samsung's 96 is -16 dB and recorded speech at ~-50 dBFS, which played back as silence |
+
+### Location consent migration — FIXED; Weather selection remains manual
+
+A fresh-install test on 2026-09-21 had GPS, Hybris and MLS enabled and the MLS
+agreement accepted, but the global `agreement_accepted` key had reverted to
+false. That gate prevented ordinary applications such as Weather from getting
+any provider. On a fresh port the global `enabled` key was also false, so the
+one-time migration now enables Location and accepts the global agreement, then
+leaves a stamp so a later user choice to switch Location off is respected.
+The Hybris GNSS provider and Samsung 1.0/1.1/2.0 HAL registrations are present;
+the latest indoor acquisition had no visible satellites and no fix, so an
+outdoor test is still required. Sailfish Weather 1.3.6 itself contains no
+positioning code: its New location page only performs a GeoNames text search.
+Therefore enabling GPS cannot automatically populate that application without
+an application-level feature; manual Weather city selection is expected.
 
 ## What does not work yet
 
@@ -130,6 +194,180 @@ all three patch markers are present.
 ## Root causes found and fixed
 
 These are all fixed **in the build tree**, so a fresh flash gets them.
+
+### USB detach wake locks — FIXED IN TREE, FLASHED AND VERIFIED ON HARDWARE
+
+The battery drain report is valid: `usb_notify` and `dwc3-otg` each have one
+continuous active wakeup-source interval from shortly after boot, and suspend
+has never succeeded. This is separate from the HWC vsync issue above.
+
+Two faults were found in `kernel/samsung/exynos9820`:
+
+1. `dwc3_otg_start_gadget(..., 0)` returned directly when its 200 ms
+   disconnect completion timed out. That bypassed `wake_unlock()` and the PHY
+   shutdown. It also reused a consumed completion on later detach attempts.
+   The completion is now reinitialised for every attempt; a timeout is logged
+   but cannot skip gadget disconnect, PHY shutdown, or wake-lock release.
+2. The MAX77705/CCIC path can miss `USB_STATUS_NOTIFY_DETACH`, while the
+   charger does report `STATUS_VBUS_LOW`. `usb_notifier` already subscribes to
+   that VBUS notifier but formerly used it only for `VBUSPOWER`. On VBUS-low it
+   now also sends `NOTIFY_EVENT_VBUS, 0`, the same peripheral-disable event as
+   the normal CCIC detach. This releases `usb_notify` and drives DWC3 down;
+   the normal CCIC event is still used when it arrives.
+
+The rebuilt `hybris-boot.img` was flashed on 2026-09-19 and read back from
+`/dev/sda14` byte-for-byte. The handset booted kernel `4.14.253+ #4` with the
+fixes. Its DWC3 `b_sess` test control was driven low for eight seconds and
+back high: `dwc3-otg` released for that interval and re-acquired afterwards
+(the wakeup-source activation count advanced from 1 to 2). This verifies the
+formerly-leaking DWC3 disconnect path on hardware.
+
+A real cable removal/reinsert test was completed on 2026-09-19. After about
+24 minutes of uptime, including several minutes unplugged with the display off,
+the kernel reported 92 successful suspends. `usb_notify` and `dwc3-otg` had
+both ended their original wake intervals and acquired new intervals only after
+the cable was reinserted (activation counts 3 and 4 respectively, with total
+held time far below uptime). This exercises the MAX77705 VBUS-low fallback and
+confirms that neither wake lock remains pinned across a detach.
+
+The high load average seen in that sample was not equivalent to high CPU use:
+the CPU snapshot was 85.5% idle, while Samsung TrustZone/RPMB and Wi-Fi helper
+threads were sleeping in uninterruptible driver waits. No second persistent
+wake source or CPU spin was found. The relevant checks are:
+
+```sh
+cat /sys/kernel/debug/wakeup_sources | grep -E 'usb_notify|dwc3-otg'
+cat /sys/kernel/debug/suspend_stats
+dmesg | grep -E 'forcing peripheral detach|disconnect completion timeout'
+```
+
+On removal both USB wakeup sources become inactive and subsequent suspend
+attempts increment `success`. A disconnect timeout is now diagnostic only; it
+cannot pin the device awake.
+
+### USB mode changes while busy — FIXED IN TREE, BUILT AND INSTALLED
+
+The Settings failure was reproduced on hardware. The first MTP activation can
+remain `busy` for roughly 100 seconds while buteo-mtp prepares FunctionFS and
+the user storage. During that interval, `usb_moded_state_set_cb()` rejected a
+new `developer_mode` request outright. The UI therefore returned, but the
+request was lost and the phone eventually stayed in MTP until reboot.
+
+`hybris/mw/usb-moded` now accepts a mode request during `MODE_BUSY`; the
+worker's existing eventfd queue is latest-request-wins. The completion callback
+also compares the actually activated hardware mode with the newest requested
+hardware mode, so it keeps publishing `busy` instead of falsely announcing a
+superseded intermediate mode as stable.
+
+Samsung exposes the correct cable state in `/sys/class/power_supply/usb/online`,
+but emits the change uevent from the sibling `battery` device only. usb-moded
+used to ignore that event because it did not match the selected `usb` syspath,
+so it cached `pc_connected` forever: no disconnect event, no Always Ask prompt
+on reconnect, and Settings continued to show Developer mode while unplugged.
+Any power-supply event now schedules a delayed reread of the selected charger;
+there is no periodic poll or extra idle wakeup.
+
+The final package
+`usb-moded-0.86.0+mer69+HEAD.20260920115602.fbad987-5.aarch64` built cleanly
+with `/usr/bin/make -O -j8`, is included in `droid-local-repo/d2s`, and its
+binary SHA-256 is
+`4329c5d5b27adb458f9410b9da0c05b364c5150ff3923266b56fb28b3de421d1`.
+It was deployed directly because a prior live RPM transaction left executable
+payloads zero-filled. Physical testing then logged `online=0`,
+`USB disconnected`, `online=1`, `USB connected`, `mode_requested_show_dialog`,
+and a completed return to Developer mode without rebooting.
+
+### False charging icon after detach — TWO CAUSES FIXED IN TREE
+
+The charger driver itself changed to `Discharging` on unplug, but mce still
+showed the charger as on. The d2s override used
+`[BatteryUDevSettings] BatteryUDevDeviceBlacklist=wireless`, which is not the
+format mce reads. The blacklist is a keyfile group named
+`[BatteryUDevDeviceBlacklist]` with one boolean per power-supply device. The
+correct d2s file now keeps mce's required Samsung auxiliary-supply exclusions
+(`bcl`, `bms`, `dc`, `fg_adc`, `main`, `parallel`, `pc_port`, `pm8921-dc`) and
+adds `wireless=true`.
+
+That fixed the permanently-on state, but it did not make every detach prompt.
+Samsung changes `usb/online` and `ac/online` while emitting the transition only
+from the sibling `battery` power supply. A short USB test captured mce changing
+`battery_state: charging -> discharging` but leaving `charger_state=on` until
+the cable was reconnected five seconds later. The status-bar component reads
+that stale mce charger state directly.
+
+`99-d2s-power-supply-rescan.rules` now runs on battery change events. Its
+transition-cached helper compares the real USB and AC `online` values and emits
+a synthetic change event only for a supply whose value changed. There is no
+timer or idle polling. A live synthetic test produced exactly one `usb` and one
+`ac` event and populated the cache; final physical detach/reconnect testing is
+in progress.
+
+### Charging-only UI flicker at 1% — FIXED IN TREE, TRANSITION RETEST NEEDED
+
+After a drained shutdown, the charging-only animation could alternate with the
+normal home UI. Both `lipstick.service` and
+`jolla-actdead-charging.service` use `Restart=always`; the charging app's
+compositor hand-off alone did not prevent Lipstick restarting during the
+USER-to-ACT_DEAD runlevel transition. Device-specific user-unit drop-ins now
+make the services mutually conflicting. The normal boot transaction was
+validated with Lipstick active and the actdead UI inactive; reproducing a full
+drained-battery transition is still needed to verify the display path.
+
+### Proximity polling heat and journal flood — FIXED IN TREE AND ON DEVICE
+
+The proximity uinput bridge was the other large power/heat fault. Every
+`raw_data` read enabled the Samsung sensor-hub channel, waited about 200 ms,
+then disabled it again. The bridge repeated that continuously. Measured before
+the fix: 10,475 journal messages per minute, an F2FS writeback kworker around
+12% CPU, SoC temperature near 78 C, and battery temperature 46.8 C. Stopping
+the bridge immediately returned the CPU to about 91% idle and temperatures
+started falling.
+
+The kernel's `prox_avg` control can now own `PROXIMITY_RAW` independently of
+the vendor HAL channel and keeps the stream open across reads. Runtime SSP
+debug macros are compiled out, while the compile-time argument checks remain.
+The bridge enables that stream once only while the display is on or a call is
+active, samples at 0.8 s normally / 0.1 s in a call, and performs no sensor
+reads while idle. It subscribes to mce before taking its initial state snapshot
+so a display transition during startup cannot leave polling enabled. Ten raw
+reads fell from about 2,150 ms to 20 ms and the repeating SSP trace disappeared.
+On the freshly installed image the service remained active with its D-Bus
+monitor, CPU samples were 79–99% idle, and battery temperature was 37–38 C.
+
+These are immediate mechanism/thermal checks; a long unplugged discharge test
+is still needed before quoting an all-day battery-life number.
+
+### F2FS writeback full-core loop — FIXED, FLASHED AND VERIFIED
+
+A later clean boot still had one `kworker/u16` consuming essentially 100% of
+one CPU (about 12.5% in an eight-core `top`) and keeping system load near 14.
+SysRq captured the complete path as `wb_workfn -> writeback_sb_inodes ->
+f2fs_write_node_pages` / `f2fs_write_data_pages`. The F2FS status counters
+stayed unchanged while the worker accumulated one CPU-second per wall second;
+an RPM `fdatasync()` eventually blocked behind the stuck writeback page.
+
+F2FS intentionally defers small directory, node and internal-mapping batches
+so they can be merged into larger IO later. The first fix covered mappings
+that report `wbc->pages_skipped`, but an eight-hour Waydroid image workload
+exposed F2FS internal mappings that remain page-cache-tagged dirty without
+incrementing that counter. A two-second writeback trace recorded 4.2 million
+events cycling over the same six inodes: every `writeback_single_inode` said
+`wrote=0`, while generic writeback falsely reported 821 pages of progress per
+pass. `wb_writeback()` therefore immediately revisited the mappings forever.
+`fs/fs-writeback.c` now counts coincidental inode-metadata cleanup as progress
+only when `pages_skipped` is zero *and* the mapping is no longer tagged dirty.
+The dirty mapping returns to `b_dirty`, the current pass terminates, and normal
+periodic writeback retries it later. This preserves F2FS batching rather than
+disabling it globally.
+
+The initramfs telnet fallback was corrected at the same time. The actual
+process is named `busybox-static`, so `killall telnetd` never matched it. The
+one-shot now checks `/proc/*/cmdline` for `/bin/busybox-static telnetd` and
+kills only that exact leftover. Both changes are in the build tree. The final
+kernel was flashed on 2026-09-21 and booted as `#1 SMP PREEMPT Mon Sep 21
+01:13:47 EDT 2026`; the first settled sample was 96.9% idle with no hot
+writeback worker, 0 kB in writeback, and about +697 mA net battery current on
+the PC's limited 875 mA USB input.
 
 ### Audio - FIXED (playback works; two earlier diagnoses were wrong)
 

@@ -1,13 +1,17 @@
 # Waydroid on d2s (Galaxy Note 10+, Sailfish OS 5.1.0.11)
 
-Android 13 runs in a container on this port: Waydroid 1.4.3 with the LineageOS
-20 system image on Waydroid's HALIUM_11 vendor shim. Apps install and run, touch
-and the browser work. Camera and anything that touches shared storage (Gallery,
-Documents) do not — both are diagnosed below.
+Waydroid 1.4.3 runs an archived LineageOS 18.1 (Android 11) system image on the
+HALIUM_11 vendor shim. This matching system/vendor pair keeps shared storage
+and the camera working; the current upstream Android 13 image does not. The
+setup defaults to the Android 11 GApps image so Play services and FCM work.
 
 Set it up on a freshly flashed phone with:
 
     devel-su /usr/bin/d2s-waydroid-setup.sh
+
+Pass `--vanilla` only if an image without Google services is wanted. Re-running
+the script with a different image type replaces the system image and forces
+Waydroid to reinitialise instead of silently retaining the old image.
 
 That script is the executable version of this document. Everything else here is
 why it does what it does, and what to check when something breaks.
@@ -50,6 +54,11 @@ port follows the same shape, with the setup script to make it one command.
 3. **Installs** `waydroid`, `waydroid-settings`, `waydroid-sensors`,
    `waydroid-gbinder-config-hybris`, `waydroid-runner`, `python3-gbinder`,
    `dnsmasq`, `lxc`.
+
+   The setup script refreshes Chum specifically, not every configured
+   repository. A root SSH session cannot obtain the Jolla Store credential
+   from the user's session bus; a blanket `zypper refresh` otherwise aborts
+   with `Store credentials not received` even though Waydroid comes from Chum.
 4. **Disables the system-wide dnsmasq.** The package enables a resolver that
    binds `0.0.0.0:53`. Waydroid starts its own dnsmasq bound to the container
    bridge and it then cannot bind — `failed to create listening socket for
@@ -65,7 +74,8 @@ port follows the same shape, with the setup script to make it one command.
      it to the container. In its log you will see
      `Current Wayland socket: "../../display/wayland-3"` — that is the nested
      one, not lipstick's.
-6. **Runs `waydroid init`**, which downloads ~1 GB. It detects
+6. **Installs Android 11 GApps and runs `waydroid init`**, which downloads
+   about 850 MB. It detects
    `vendor_type = HALIUM_11` from `ro.vndk.version=30` and writes
    `binder = anbox-binder` (and the vnd/hw equivalents) into
    `/var/lib/waydroid/waydroid.cfg` on its own.
@@ -76,17 +86,17 @@ Then open the **Waydroid** app. First start takes about a minute.
 
 | Area | State | Notes |
 |---|---|---|
-| Container boot | Working | `sys.boot_completed=1`, Android 13 (SDK 33), ~1.75 GiB RAM while running. |
+| Container boot | Working | Verified 2026-09-21 with the GApps image: `sys.boot_completed=1`, Android 11 (SDK 30), Google Play Store / Play services / GSF installed. |
 | Touch, keyboard | Working | Through `waydroid-runner`'s nested compositor. Inside the container the devices are `/dev/input/wl_touch_events`, `wl_pointer_events`, `wl_keyboard_events`. |
 | Browser, general apps | Working | |
-| Networking | Working | `waydroid0` bridge, container at 192.168.240.x, NAT to the phone's connection. |
+| Networking | Working | `waydroid0` bridge, container at 192.168.240.112 in the verification run, NAT to the phone's connection; direct Internet ping succeeded. |
 | Sensors | Bridged | `waydroid-sensord` runs on the **host** against `/dev/anbox-hwbinder` and registers `android.hardware.sensors@1.0` into the container. This is the pattern any other host HAL would have to follow. |
-| Shared storage (Gallery, Documents, `/storage/emulated/0`) | Working **on the Android 11 image** | Broken on the stock Android 13 image - see "The system image matters" below. |
+| Shared storage (Gallery, Documents, `/storage/emulated/0`) | Working **on the Android 11 image** | A file written to `/sdcard/Download` was immediately visible at `~/.local/share/waydroid/data/media/0/Download` on the host. Broken on the stock Android 13 image - see "The system image matters" below. |
 | Camera | Working on Android 11, **but never select 4K** | Photos and preview work from the container on the Android 11 image (5 devices enumerated). Setting video quality to **UHD 4K kills the container's camera provider**: the HAL returns error 3, `vendor.camera-provider-2-4` goes to `stopped`, `Number of camera devices` drops to 0, and every subsequent open fails with "Can't connect to the camera". It does **not** recover - `ctl.start`/`ctl.restart` and even a full session restart leave it at `getProviderImpl: camera provider init failed!`, so a phone reboot is needed. Keep Waydroid's video at 1080p; the phone's own camera does 4K fine. |
 | GPS | Working, via Play services | There is no GNSS HAL in the container and Android 11's `cmd location` has no test-provider commands, so nothing feeds the `gps` provider - but with GApps installed, Play services' network location is enough for Maps to place the device. A real GNSS bridge (a host process registering `android.hardware.gnss` on `/dev/anbox-hwbinder`, the pattern `waydroid-sensord` uses) would be needed for a true fix. |
 | Notifications | Working, bridged | Waydroid bridges the clipboard but not notifications. `d2s-waydroid-notify.service` polls `dumpsys notification` and re-posts new ones to the host's `org.freedesktop.Notifications`, so Android notifications reach the Sailfish events view - for every app, not just messengers. See `usr/bin/d2s-waydroid-notify.py` for the limits of that approach. |
 | WhatsApp voice calls | Working | Two-way, with the microphone. |
-| Audio out | Working, with one setting | Waydroid talks to PulseAudio directly, so none of Sailfish's volume policy applies: at Android's full media volume the speaker amps clip and everything crackles as if the volume were stuck at 200%. **Set Android's own media volume to 11 of 15 or lower** (`settings put system volume_music 11` inside the container) - 11 is where it came back clean by ear, on the speaker and on a Bluetooth headset. Do **not** try to cap this from the PulseAudio side: Sailfish's `module-stream-restore-nemo` keys volume by *media role*, and Waydroid's stream carries the same `x-maemo` role as ordinary Sailfish apps, so lowering Waydroid's stream silently drags every Sailfish app down with it (verified the hard way - the phone's own media player ended up at 45% too). The setting persists in Android's own settings database, so it survives session restarts and only needs redoing if the Waydroid data directory is wiped. |
+| Audio out | Working, capped to the clean range | Waydroid talks to PulseAudio directly. Android's stock 0..15 media range overdrives this port's fixed speaker path; the upper steps clip and crackle as if volume were at 200%. The setup script now writes `ro.config.media_vol_steps=11` to `waydroid_base.prop`, so AudioService, Android's slider, and volume keys all use 0..11. This supersedes the ineffective old `settings put system volume_music 11`: the active device-specific key was `volume_music_speaker=15`, and the running service still exposed a maximum of 15. Verified live after a container restart: `STREAM_MUSIC Max: 11`, current 11, and an attempt to set 15 is rejected as outside `[0..11]`. Do **not** cap the PulseAudio stream: `module-stream-restore-nemo` keys it by the shared `x-maemo` role and would also lower native Sailfish media. |
 | Microphone | Working | Confirmed in the container and during a WhatsApp call. It needs `droid-alsa-mixer.service` to have applied Samsung's mic route - that service was silently failing on every boot (`203/EXEC`, a missing executable bit in the package) and the mic recorded silence until it was fixed. Gain is now `IN3R Digital Volume` 191. |
 | Battery level | **Wrong, and not ours** | The container reads the real battery fine (`/sys/class/power_supply/battery/capacity` is correct inside it), but `dumpsys battery` reports level 85, voltage 3600, temperature 350 - hardcoded stubs in Waydroid's own `android.hardware.health@2.0-service.waydroid`, which never reads the host. Only a patched vendor image or a host bridge (as `waydroid-sensord` does for sensors) would fix it. |
 | WiFi | Shows nothing, by design | The container's active network is **Ethernet** (`eth0` on the `waydroid0` bridge); it has no WiFi hardware, so the WiFi screen is always empty. Apps see a connected network and work. `persist.waydroid.fake_wifi` makes named apps believe they are on WiFi, for apps that refuse to act otherwise. |
