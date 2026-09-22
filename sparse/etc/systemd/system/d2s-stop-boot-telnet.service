@@ -1,0 +1,13 @@
+[Unit]
+Description=d2s: stop leftover init-debug telnet daemon
+DefaultDependencies=no
+After=local-fs.target
+Before=basic.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/d2s-stop-boot-telnet
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target

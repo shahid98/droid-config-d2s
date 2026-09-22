@@ -1,0 +1,15 @@
+#!/bin/sh
+# The init-debug ramdisk starts telnet as "busybox-static telnetd".  Its
+# process name is busybox-static, so killall(1) cannot find it as "telnetd".
+# Match the complete command line instead, without relying on procps pkill
+# being present in the early root filesystem.
+
+for proc in /proc/[0-9]*; do
+    [ -r "$proc/cmdline" ] || continue
+    cmdline=$(tr '\000' ' ' < "$proc/cmdline" 2>/dev/null) || continue
+    case "$cmdline" in
+        "/bin/busybox-static telnetd "*)
+            kill "${proc##*/}" 2>/dev/null || true
+            ;;
+    esac
+done
