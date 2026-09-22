@@ -35,10 +35,9 @@ without tracking the hub's drifting baseline.
 
 WHY THE POLLING IS GATED
 
-Every read of raw_data is expensive. The SSP hub has no always-on proximity
-stream to read from: the sysfs show() handler enables the sensor, waits for a
-sample, and disables it again. Measured on d2s, one read costs ~200 ms and
-~15.5 lines of kernel log:
+Every read of raw_data used to be expensive. The stock sysfs show() handler
+enabled the sensor, waited for a sample, and disabled it again. Measured on
+d2s, one read cost ~200 ms and generated a large kernel trace:
 
     ssp_lines per 10s, bridge running : 366
     ssp_lines per 10s, bridge stopped :  13
@@ -46,9 +45,13 @@ sample, and disables it again. Measured on d2s, one read costs ~200 ms and
 At a flat 100 ms poll that was ~140 log lines a second - about 97% of
 everything the kernel logged - which filled the 1 MB volatile journal in under
 two minutes and made `journalctl -b` useless for diagnosing anything that
-happened at boot. It also woke the sensor hub three times a second, forever.
-(Holding the fd open and seeking does not help; the work is in show(), per
-read, not per open.)
+happened at boot. It also woke the sensor hub three times a second. Holding the
+fd open did not help because the work was in show(), per read, not per open.
+
+The d2s kernel fix allows the existing prox_avg control to hold the raw stream
+open independently of Samsung's broken HAL proximity channel. This bridge now
+enables that stream once while proximity is wanted, reads the already-updated
+value without reconfiguring the hub, and disables it again when idle.
 
 Proximity is only wanted when the display is on, or during a call - that second
 case matters because mce needs it precisely while the screen is off, to unblank
@@ -70,6 +73,7 @@ import threading
 import time
 
 RAW_PATH = "/sys/class/sensors/proximity_sensor/raw_data"
+RAW_ENABLE_PATH = "/sys/class/sensors/proximity_sensor/prox_avg"
 DEVICE_NAME = b"d2s-proximity"
 
 # Hysteresis: the hub re-baselines while covered, so keep the two edges well
@@ -77,12 +81,13 @@ DEVICE_NAME = b"d2s-proximity"
 NEAR_ABOVE = 2500
 FAR_BELOW = 1900
 
-# A read already costs ~200 ms, so 0.1 s is "as fast as the hub allows".
-ACTIVE_INTERVAL = 0.1
-# Idle still polls, rather than stopping: the gate can only be as correct as
-# the signals it sees, and a stale reading when the screen comes on would be
-# worse than the cost of one read every few seconds.
-IDLE_INTERVAL = 5.0
+# Calls need prompt near/far transitions. Normal display-on sampling only
+# keeps the last state fresh for the next blank and can be slower. Idle checks
+# are in-memory only and never touch the sensor hub.
+CALL_INTERVAL = 0.1
+DISPLAY_INTERVAL = 0.8
+IDLE_CHECK_INTERVAL = 0.25
+STREAM_START_DELAY = 0.25
 
 MCE_DEST = "com.nokia.mce"
 MCE_REQ_PATH = "/com/nokia/mce/request"
@@ -141,6 +146,15 @@ def read_raw():
         return None
 
 
+def set_raw_stream(enable):
+    try:
+        with open(RAW_ENABLE_PATH, "w") as f:
+            f.write("1\n" if enable else "0\n")
+        return True
+    except OSError:
+        return False
+
+
 class Gate:
     """Tracks whether proximity is wanted, from mce's display and call state.
 
@@ -153,10 +167,19 @@ class Gate:
         self.display = "on"
         self.call = "none"
         self.lock = threading.Lock()
+        self.monitor_ready = threading.Event()
 
     def active(self):
         with self.lock:
             return self.display != "off" or self.call != "none"
+
+    def mode(self):
+        with self.lock:
+            if self.call != "none":
+                return "call"
+            if self.display != "off":
+                return "display"
+            return "idle"
 
     def _mce_get(self, method):
         try:
@@ -218,6 +241,7 @@ class Gate:
                     ["gdbus", "monitor", "--system", "--dest", MCE_DEST],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     text=True, bufsize=1)
+                self.monitor_ready.set()
                 for line in p.stdout:
                     self._consume(line)
             except (subprocess.SubprocessError, OSError) as e:
@@ -231,6 +255,10 @@ class Gate:
 
     def start(self):
         threading.Thread(target=self._watch, daemon=True).start()
+        # Subscribe before taking the initial state snapshot. Otherwise a
+        # display transition between prime() and monitor startup is lost and
+        # can leave raw proximity sampling active while the display is off.
+        self.monitor_ready.wait(timeout=2.0)
 
 
 def main():
@@ -245,12 +273,28 @@ def main():
               % DEVICE_NAME.decode(), flush=True)
 
     gate = Gate(verbose)
-    gate.prime()
     gate.start()
-    was_active = gate.active()
+    gate.prime()
+    streaming = False
 
     try:
         while True:
+            mode = gate.mode()
+            if mode == "idle":
+                if streaming:
+                    set_raw_stream(False)
+                    streaming = False
+                time.sleep(IDLE_CHECK_INTERVAL)
+                continue
+
+            if not streaming:
+                if not set_raw_stream(True):
+                    time.sleep(1.0)
+                    continue
+                streaming = True
+                # Let the first hub sample replace the reset value.
+                time.sleep(STREAM_START_DELAY)
+
             raw = read_raw()
             if raw is not None:
                 if state == FAR and raw >= NEAR_ABOVE:
@@ -264,16 +308,10 @@ def main():
                     if verbose:
                         print("  raw=%d -> FAR" % raw, flush=True)
 
-            now_active = gate.active()
-            # Going active must not wait out an idle interval: the screen has
-            # just come on, or a call has started, and that is exactly when the
-            # reading has to be current.
-            if now_active and not was_active:
-                was_active = True
-                continue
-            was_active = now_active
-            time.sleep(ACTIVE_INTERVAL if now_active else IDLE_INTERVAL)
+            time.sleep(CALL_INTERVAL if mode == "call" else DISPLAY_INTERVAL)
     finally:
+        if streaming:
+            set_raw_stream(False)
         try:
             fcntl.ioctl(fd, UI_DEV_DESTROY)
         except OSError:
