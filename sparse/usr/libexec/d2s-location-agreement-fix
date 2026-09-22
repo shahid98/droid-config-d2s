@@ -1,0 +1,24 @@
+#!/bin/sh
+# Sailfish can leave the global gate false even after the user enables Location
+# and accepts the provider-specific MLS agreement.  Applications such as
+# Weather then receive no position although the GNSS and MLS providers work.
+# This device ships Location disabled even after the first-start wizard, so
+# Weather cannot perform its initial automatic city lookup.  Enable the global
+# gate as part of the one-time port migration as well as accepting the already
+# selected provider agreement.  The user can still switch Location off later;
+# the stamp prevents us from overriding that choice on subsequent boots.
+
+stamp=/var/lib/location/.d2s-initial-location-migrated
+[ -e "$stamp" ] && exit 0
+
+for config in /var/lib/location/location.conf /etc/location/location.conf; do
+    [ -f "$config" ] || continue
+    sed -i \
+        -e 's/^agreement_accepted=false$/agreement_accepted=true/' \
+        -e 's/^enabled=false$/enabled=true/' \
+        "$config"
+    chown defaultuser:defaultuser "$config" 2>/dev/null || true
+done
+
+mkdir -p "${stamp%/*}"
+: > "$stamp"

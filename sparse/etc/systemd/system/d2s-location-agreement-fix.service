@@ -1,0 +1,12 @@
+[Unit]
+Description=d2s: migrate the Sailfish global location agreement gate
+After=local-fs.target
+Before=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/d2s-location-agreement-fix
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
