@@ -10,8 +10,9 @@
 # anbox-binder/anbox-vndbinder/anbox-hwbinder, ashmem, and the netfilter
 # CHECKSUM target Waydroid's network script needs.
 #
-# Usage: d2s-waydroid-setup.sh [--gapps] [--no-init]
-#   --gapps    use the image with Google apps (bigger; needed for FCM push)
+# Usage: d2s-waydroid-setup.sh [--gapps|--vanilla] [--no-init]
+#   --gapps    use the image with Google apps (the d2s default)
+#   --vanilla  use the image without Google apps
 #   --no-init  skip the image download entirely
 
 set -e
@@ -33,11 +34,13 @@ VENDOR_OTA="https://ota.waydro.id/vendor/waydroid_arm64/HALIUM_11.json"
 EXTRA=/etc/waydroid-extra/images
 PKGS="lxc waydroid waydroid-settings waydroid-sensors waydroid-gbinder-config-hybris waydroid-runner python3-gbinder dnsmasq"
 
-SYS_ZIP="$SYS_VANILLA"
+SYS_ZIP="$SYS_GAPPS"
+IMAGE_TYPE=GAPPS
 NO_INIT=""
 for a in "$@"; do
     case "$a" in
-        --gapps)   SYS_ZIP="$SYS_GAPPS";;
+        --gapps)   SYS_ZIP="$SYS_GAPPS"; IMAGE_TYPE=GAPPS;;
+        --vanilla) SYS_ZIP="$SYS_VANILLA"; IMAGE_TYPE=VANILLA;;
         --no-init) NO_INIT=1;;
         *) echo "unknown option: $a"; exit 1;;
     esac
@@ -65,7 +68,11 @@ if ! ssu lr 2>/dev/null | grep -q "chum"; then
 fi
 
 echo "== packages =="
-zypper --non-interactive --gpg-auto-import-keys refresh
+# Refresh only Chum here.  A headless root invocation cannot obtain the Jolla
+# Store token over the user's session bus; refreshing every configured repo
+# then aborts an otherwise healthy install with "Store credentials not
+# received" even though all Waydroid packages come from Chum.
+zypper --non-interactive --gpg-auto-import-keys refresh chum
 zypper --non-interactive install $PKGS
 
 echo "== dnsmasq =="
@@ -99,6 +106,17 @@ if [ -f "$D" ] && ! grep -q "^NoDisplay=true" "$D"; then
     sed -i '/^Icon=waydroid$/a NoDisplay=true' "$D"
 fi
 
+# Android's stock 15-step media range drives this port's fixed speaker path
+# beyond its clean gain range.  Limiting the range at AudioService level makes
+# Android's own slider and hardware-key handling agree on 0..11, instead of a
+# one-off settings write that leaves the device-specific
+# volume_music_speaker key (and the running AudioService) at 15.
+BASE_PROP=/var/lib/waydroid/waydroid_base.prop
+if [ -f "$BASE_PROP" ]; then
+    sed -i '/^ro\.config\.media_vol_steps=/d' "$BASE_PROP"
+    printf '%s\n' 'ro.config.media_vol_steps=11' >> "$BASE_PROP"
+fi
+
 if [ -n "$NO_INIT" ]; then
     echo "done (skipped images; run 'waydroid init' yourself, but read the note above)"
     exit 0
@@ -108,12 +126,21 @@ echo "== images =="
 # Placed in /etc/waydroid-extra/images, which `waydroid init` prefers over its
 # own download when BOTH system.img and vendor.img are there. That is how the
 # Android 11 system image gets used instead of the Android 13 one.
-if [ -f /var/lib/waydroid/waydroid.cfg ] && [ -d /var/lib/waydroid/rootfs ]; then
+IMAGE_MARKER="$EXTRA/.d2s-image-type"
+INSTALLED_TYPE=$(cat "$IMAGE_MARKER" 2>/dev/null || true)
+if [ -f /var/lib/waydroid/waydroid.cfg ] &&
+        [ -d /var/lib/waydroid/rootfs ] &&
+        [ "$INSTALLED_TYPE" = "$IMAGE_TYPE" ]; then
     echo "already initialised, skipping"
 else
     mkdir -p "$EXTRA"
-    if [ ! -f "$EXTRA/system.img" ]; then
-        echo "fetching the Android 11 system image (~800 MB) ..."
+    if [ ! -f "$EXTRA/system.img" ] || [ "$INSTALLED_TYPE" != "$IMAGE_TYPE" ]; then
+        # Never replace an image underneath a live loop mount.  The package
+        # enables the container service, so it may have auto-started even when
+        # the user has not opened Waydroid yet.
+        systemctl stop waydroid-container.service 2>/dev/null || true
+        pkill -f 'python3 /usr/bin/waydroid container start' 2>/dev/null || true
+        echo "fetching the Android 11 $IMAGE_TYPE system image (~800 MB) ..."
         # -C - so an interrupted download resumes; SourceForge mirrors drop often.
         curl -L -C - --retry 5 --connect-timeout 20 --speed-limit 20480 --speed-time 60 \
              -o "$EXTRA/$SYS_ZIP" "$SYS_BASE/$SYS_ZIP" || { echo "system image download failed"; exit 1; }
@@ -121,6 +148,7 @@ else
         python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
                 "$EXTRA/$SYS_ZIP" "$EXTRA" || { echo "could not unpack the system image"; exit 1; }
         rm -f "$EXTRA/$SYS_ZIP"
+        printf '%s\n' "$IMAGE_TYPE" > "$IMAGE_MARKER"
     fi
     if [ ! -f "$EXTRA/vendor.img" ]; then
         echo "fetching the HALIUM_11 vendor image ..."
@@ -136,17 +164,30 @@ else
     # binder nodes are picked up from /dev automatically: waydroid prefers
     # anbox-binder over the host's own /dev/binder, so the container gets its
     # own binder domain and the phone's own HALs are untouched.
-    waydroid init
+    if [ -f /var/lib/waydroid/waydroid.cfg ]; then
+        waydroid init -f
+    else
+        waydroid init
+    fi
+fi
+
+# `waydroid init` regenerates waydroid.desktop, so enforce this again after it
+# finishes. Otherwise a fresh GApps/vanilla switch brings the non-touch direct
+# launcher back and the app grid shows two identical Waydroid icons.
+if [ -f "$D" ] && ! grep -q "^NoDisplay=true" "$D"; then
+    sed -i '/^Icon=waydroid$/a NoDisplay=true' "$D"
+fi
+
+# `waydroid init` can regenerate the base property file.
+if [ -f "$BASE_PROP" ]; then
+    sed -i '/^ro\.config\.media_vol_steps=/d' "$BASE_PROP"
+    printf '%s\n' 'ro.config.media_vol_steps=11' >> "$BASE_PROP"
 fi
 
 echo
 echo "done. Open the 'Waydroid' app from the launcher - it starts the container"
 echo "on first run and takes about a minute."
-echo
-echo "Then, once Android is up, set its media volume (the speaker amps clip"
-echo "above this and everything crackles):"
-echo "    lxc-attach -P /var/lib/waydroid/lxc -n waydroid -- \\"
-echo "        /system/bin/sh -c 'settings put system volume_music 11'"
+echo "Android media volume is capped at the tested clean 11-step range."
 echo
 echo "And do NOT accept the Waydroid Updater's offer to move to 20.0 - that is"
 echo "the Android 13 image this script deliberately avoids."
