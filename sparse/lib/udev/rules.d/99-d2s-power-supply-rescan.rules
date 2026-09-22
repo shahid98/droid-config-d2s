@@ -1,0 +1,3 @@
+# The d2s charger changes usb/ac ONLINE but reports the transition on battery.
+# Wake consumers of the changed charger supply without periodic polling.
+ACTION=="change", SUBSYSTEM=="power_supply", KERNEL=="battery", RUN+="/usr/libexec/d2s-power-supply-rescan"

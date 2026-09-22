@@ -1,0 +1,28 @@
+#!/bin/sh
+# Samsung's battery driver changes usb/ac ONLINE while emitting only a
+# battery uevent.  Consumers such as mce watch each charger supply and keep a
+# stale charger state until that supply happens to emit another event.
+#
+# Mirror only actual ONLINE transitions as synthetic supply change events.
+# This is event-driven (no polling) and the /run cache prevents periodic
+# battery telemetry events from producing needless wakeups.
+
+state_dir=/run/d2s-power-supply-rescan
+mkdir -p "$state_dir" || exit 0
+
+for supply in usb ac; do
+    supply_dir=/sys/class/power_supply/$supply
+    test -r "$supply_dir/online" || continue
+    test -w "$supply_dir/uevent" || continue
+
+    online="$(cat "$supply_dir/online" 2>/dev/null)" || continue
+    state_file=$state_dir/$supply.online
+    previous=
+    test -r "$state_file" && previous="$(cat "$state_file" 2>/dev/null)"
+
+    test "$online" = "$previous" && continue
+    printf '%s\n' "$online" > "$state_file" || continue
+    printf '%s\n' change > "$supply_dir/uevent"
+done
+
+exit 0
