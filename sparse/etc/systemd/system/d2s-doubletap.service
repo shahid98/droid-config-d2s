@@ -1,6 +1,7 @@
 [Unit]
 Description=Translate the panel's double-tap KEY_WAKEUP into an mce wake gesture
-After=droid-hal-init.service
+After=droid-hal-init.service mce.service
+Wants=mce.service
 
 [Service]
 Type=simple

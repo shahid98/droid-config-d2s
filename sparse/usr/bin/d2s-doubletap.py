@@ -39,6 +39,7 @@ needs d2s-proximity-uinput.service to be working).
 import fcntl
 import os
 import struct
+import subprocess
 import sys
 import time
 
@@ -82,6 +83,22 @@ def enable_aot():
             print("could not write %s: %s" % (cmd, e), flush=True)
 
 
+def wait_for_mce():
+    """Do not create the hotplug device before mce's evdev monitor is ready."""
+    args = ["gdbus", "call", "--system", "--dest", "com.nokia.mce",
+            "--object-path", "/com/nokia/mce/request", "--method",
+            "com.nokia.mce.request.get_display_status"]
+    for _ in range(30):
+        try:
+            if subprocess.run(args, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL,
+                              timeout=2).returncode == 0:
+                return
+        except (OSError, subprocess.SubprocessError):
+            pass
+        time.sleep(1)
+
+
 def create_uinput():
     fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
     fcntl.ioctl(fd, UI_SET_EVBIT, EV_KEY)
@@ -111,6 +128,7 @@ def emit_gesture(fd):
 
 def main():
     verbose = "--verbose" in sys.argv or "--test" in sys.argv
+    wait_for_mce()
     fd = create_uinput()
     time.sleep(1.0)          # let mce notice and classify the new device
     if verbose:
