@@ -1,0 +1,6 @@
+[Unit]
+Description=d2s: commit newly installed package data to storage
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sync

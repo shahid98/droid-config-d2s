@@ -1,0 +1,14 @@
+[Unit]
+Description=d2s: flush package payloads after RPM transactions
+
+[Path]
+# A transaction updates these databases after laying down its payload.  The
+# port has suffered allocated, correctly-sized package files reading back as
+# zero after a pin reset; sync here closes that durability window without a
+# periodic timer that would wake the phone.
+PathChanged=/var/lib/rpm/Packages.db
+PathChanged=/var/lib/rpm/Index.db
+Unit=d2s-rpm-sync.service
+
+[Install]
+WantedBy=multi-user.target
